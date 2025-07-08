@@ -1,8 +1,8 @@
 # Online Voting Management System
 ## Schema Diagram
-![DBMS Project](images/dbms_project.svg)
+![DBMS Project](docs/dbms_project.svg)
 ## E-R Diagram
-![Online Voting ER Model](images/Online_voting_ER_model.svg)
+![Online Voting ER Model](docs/Online_voting_ER_model.svg)
 ## Directory Layout
 ```
 online-voting-system/
