@@ -1,0 +1,144 @@
+-- ======= Basic SELECT =======
+
+SELECT * FROM ADMIN;
+
+SELECT voter_id, full_name, email, phone, is_verified FROM VOTER;
+
+SELECT candidate_id, full_name, party, symbol FROM CANDIDATE;
+
+SELECT * FROM ELECTION WHERE is_active = 'Y';
+
+SELECT * FROM SCHEDULE WHERE election_id = :election_id;
+
+
+-- ======= Join Queries =======
+
+-- Candidates for a given election
+SELECT c.candidate_id, c.full_name, c.party, con.position
+FROM CANDIDATE c
+JOIN CONTEST con ON c.candidate_id = con.candidate_id
+WHERE con.election_id = :election_id;
+
+-- Vote counts per candidate in a given election
+SELECT c.candidate_id, c.full_name, COUNT(v.vote_id) AS votes_count
+FROM VOTE v
+JOIN CONTEST con ON v.contest_id = con.contest_id
+JOIN CANDIDATE c ON con.candidate_id = c.candidate_id
+WHERE con.election_id = :election_id
+GROUP BY c.candidate_id, c.full_name
+ORDER BY votes_count DESC;
+
+-- Voters who voted in a given election
+SELECT DISTINCT v.voter_id, v.full_name, v.email
+FROM VOTER v
+JOIN VOTE vt ON v.voter_id = vt.voter_id
+JOIN CONTEST con ON vt.contest_id = con.contest_id
+WHERE con.election_id = :election_id;
+
+-- Audit logs with admin details
+SELECT a.log_id, ad.full_name AS admin_name, a.action, a.description, a.action_time, a.ip_address
+FROM AUDIT_LOG a
+JOIN ADMIN ad ON a.admin_id = ad.admin_id
+ORDER BY a.action_time DESC;
+
+
+-- ======= INSERT Templates =======
+
+INSERT INTO VOTER (
+  voter_id, full_name, dob, address, email, password, phone, is_verified, registration_date, role
+) VALUES (
+  :voter_id, :full_name, :dob, :address, :email, :password, :phone, :is_verified, SYSTIMESTAMP, :role
+);
+
+INSERT INTO CANDIDATE (
+  candidate_id, full_name, symbol, party, manifesto, photo_url
+) VALUES (
+  :candidate_id, :full_name, :symbol, :party, :manifesto, :photo_url
+);
+
+INSERT INTO ELECTION (
+  election_id, name, election_type, election_date, is_active, admin_id, description
+) VALUES (
+  :election_id, :name, :election_type, :election_date, :is_active, :admin_id, :description
+);
+
+INSERT INTO CONTEST (
+  contest_id, election_id, candidate_id, position
+) VALUES (
+  :contest_id, :election_id, :candidate_id, :position
+);
+
+INSERT INTO VOTE (
+  vote_id, contest_id, voter_id, vote_timestamp, ip_address
+) VALUES (
+  :vote_id, :contest_id, :voter_id, SYSTIMESTAMP, :ip_address
+);
+
+INSERT INTO NOTIFICATION (
+  notification_id, admin_id, voter_id, candidate_id, message, created_at, is_read
+) VALUES (
+  :notification_id, :admin_id, :voter_id, :candidate_id, :message, SYSTIMESTAMP, 'N'
+);
+
+
+-- ======= UPDATE =======
+
+UPDATE VOTER
+SET is_verified = :is_verified
+WHERE voter_id = :voter_id;
+
+UPDATE ELECTION
+SET is_active = :is_active
+WHERE election_id = :election_id;
+
+UPDATE CANDIDATE
+SET manifesto = :manifesto
+WHERE candidate_id = :candidate_id;
+
+UPDATE NOTIFICATION
+SET is_read = 'Y'
+WHERE notification_id = :notification_id;
+
+
+-- ======= DELETE =======
+
+DELETE FROM VOTE
+WHERE vote_id = :vote_id;
+
+DELETE FROM CONTEST
+WHERE contest_id = :contest_id;
+
+DELETE FROM NOTIFICATION
+WHERE notification_id = :notification_id;
+
+
+-- ======= RESULT Queries =======
+
+SELECT r.candidate_id, c.full_name, r.total_votes, r.percentage
+FROM RESULT r
+JOIN CANDIDATE c ON r.candidate_id = c.candidate_id
+WHERE r.election_id = :election_id
+ORDER BY r.total_votes DESC;
+
+MERGE INTO RESULT r
+USING (
+  SELECT :election_id AS election_id, :candidate_id AS candidate_id FROM dual
+) src
+ON (r.election_id = src.election_id AND r.candidate_id = src.candidate_id)
+WHEN MATCHED THEN
+  UPDATE SET r.total_votes = :total_votes, r.percentage = :percentage
+WHEN NOT MATCHED THEN
+  INSERT (result_id, election_id, candidate_id, total_votes, percentage)
+  VALUES (:result_id, :election_id, :candidate_id, :total_votes, :percentage);
+
+
+-- ======= UTILITY Queries =======
+
+SELECT COUNT(*) AS vote_count
+FROM VOTE
+WHERE contest_id = :contest_id AND voter_id = :voter_id;
+
+SELECT notification_id, message, created_at
+FROM NOTIFICATION
+WHERE voter_id = :voter_id AND is_read = 'N'
+ORDER BY created_at DESC;
