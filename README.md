@@ -188,6 +188,25 @@ INSERT INTO NOTIFICATION VALUES (903, NULL, NULL, 201, 'Update your photo', SYST
 INSERT INTO NOTIFICATION VALUES (904, 2, 102, NULL, 'Voting starts tomorrow', SYSTIMESTAMP, 'Y');
 INSERT INTO NOTIFICATION VALUES (905, 3, NULL, 202, 'Submit manifesto by deadline', SYSTIMESTAMP, 'N');
 ```
+## Tables
+### Natural Join — Elections with Their Schedules
+```
+SELECT election_id, name, nomination_start, voting_start
+FROM ELECTION
+NATURAL JOIN SCHEDULE;
+```
+### Cross Product — Admin-Candidate Pairings
+```
+SELECT a.full_name AS admin_name, c.full_name AS candidate_name
+FROM ADMIN a, CANDIDATE c;
+
+```
+### Outer Join — Voters and Any Votes Cast
+```
+SELECT v.voter_id, v.full_name, vt.vote_id
+FROM VOTER v
+LEFT OUTER JOIN VOTE vt ON v.voter_id = vt.voter_id;
+```
 ## Directory Layout
 ```
 online-voting-system/
