@@ -1,0 +1,267 @@
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-2 sidebar">
+            <div class="p-3">
+                <h5 class="text-primary">
+                    <i class="bi bi-speedometer2"></i> Admin Panel
+                </h5>
+                <nav class="nav flex-column mt-3">
+                    <a class="nav-link active" href="/admin/dashboard">
+                        <i class="bi bi-house-door"></i> Dashboard
+                    </a>
+                    <a class="nav-link" href="/admin/elections">
+                        <i class="bi bi-calendar-event"></i> Elections
+                    </a>
+                    <a class="nav-link" href="/admin/voters">
+                        <i class="bi bi-people"></i> Voters
+                    </a>
+                    <a class="nav-link" href="/admin/candidates">
+                        <i class="bi bi-person-badge"></i> Candidates
+                    </a>
+                    <a class="nav-link" href="/admin/results">
+                        <i class="bi bi-bar-chart"></i> Results
+                    </a>
+                    <a class="nav-link" href="/admin/audit-logs">
+                        <i class="bi bi-file-text"></i> Audit Logs
+                    </a>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-md-9 col-lg-10">
+            <div class="p-4">
+                <!-- Header -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2><i class="bi bi-speedometer2"></i> Admin Dashboard</h2>
+                    <div class="text-muted">
+                        <i class="bi bi-clock"></i>
+                        <span id="currentTime"></span>
+                    </div>
+                </div>
+
+                <!-- Statistics Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <div class="card-body text-center">
+                                <i class="bi bi-calendar-event text-primary" style="font-size: 2rem;"></i>
+                                <div class="stat-number"><%= stats.total_elections || 0 %></div>
+                                <small class="text-muted">Total Elections</small>
+                                <div class="text-success mt-1">
+                                    <small><%= stats.active_elections || 0 %> Active</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <div class="card-body text-center">
+                                <i class="bi bi-people text-success" style="font-size: 2rem;"></i>
+                                <div class="stat-number"><%= stats.total_voters || 0 %></div>
+                                <small class="text-muted">Total Voters</small>
+                                <div class="text-success mt-1">
+                                    <small><%= stats.verified_voters || 0 %> Verified</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <div class="card-body text-center">
+                                <i class="bi bi-person-badge text-warning" style="font-size: 2rem;"></i>
+                                <div class="stat-number"><%= stats.total_candidates || 0 %></div>
+                                <small class="text-muted">Total Candidates</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <div class="card-body text-center">
+                                <i class="bi bi-check-square text-info" style="font-size: 2rem;"></i>
+                                <div class="stat-number"><%= stats.total_votes || 0 %></div>
+                                <small class="text-muted">Total Votes</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Dashboard Content -->
+                <div class="row">
+                    <!-- Recent Elections -->
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-calendar-event"></i> Recent Elections
+                                </h5>
+                                <a href="/admin/elections" class="btn btn-sm btn-outline-primary">
+                                    View All
+                                </a>
+                            </div>
+                            <div class="card-body">
+                                <% if (recentElections && recentElections.length > 0) { %>
+                                    <% recentElections.forEach(election => { %>
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <div>
+                                                <h6 class="mb-1"><%= election.name %></h6>
+                                                <small class="text-muted">
+                                                    <%= election.election_type %> • 
+                                                    <%= new Date(election.election_date).toLocaleDateString() %>
+                                                </small>
+                                            </div>
+                                            <span class="badge bg-<%= election.is_active === 'Y' ? 'success' : 'secondary' %>">
+                                                <%= election.is_active === 'Y' ? 'Active' : 'Inactive' %>
+                                            </span>
+                                        </div>
+                                    <% }) %>
+                                <% } else { %>
+                                    <p class="text-muted">No elections found</p>
+                                <% } %>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pending Voter Verifications -->
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-person-check"></i> Pending Verifications
+                                </h5>
+                                <a href="/admin/voters" class="btn btn-sm btn-outline-primary">
+                                    View All
+                                </a>
+                            </div>
+                            <div class="card-body">
+                                <% if (pendingVoters && pendingVoters.length > 0) { %>
+                                    <% pendingVoters.forEach(voter => { %>
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <div>
+                                                <h6 class="mb-1"><%= voter.full_name %></h6>
+                                                <small class="text-muted">
+                                                    <%= voter.email %><br>
+                                                    Registered: <%= new Date(voter.registration_date).toLocaleDateString() %>
+                                                </small>
+                                            </div>
+                                            <form action="/admin/voters/<%= voter.voter_id %>/verify" method="POST" style="display: inline;">
+                                                <button type="submit" class="btn btn-sm btn-success">
+                                                    <i class="bi bi-check"></i> Verify
+                                                </button>
+                                            </form>
+                                        </div>
+                                    <% }) %>
+                                <% } else { %>
+                                    <p class="text-muted">No pending verifications</p>
+                                <% } %>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Audit Logs -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-file-text"></i> Recent Activity
+                                </h5>
+                                <a href="/admin/audit-logs" class="btn btn-sm btn-outline-primary">
+                                    View All Logs
+                                </a>
+                            </div>
+                            <div class="card-body">
+                                <% if (auditLogs && auditLogs.length > 0) { %>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>Time</th>
+                                                    <th>Admin</th>
+                                                    <th>Action</th>
+                                                    <th>Description</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <% auditLogs.forEach(log => { %>
+                                                    <tr>
+                                                        <td>
+                                                            <small><%= new Date(log.action_time).toLocaleString() %></small>
+                                                        </td>
+                                                        <td><%= log.full_name %></td>
+                                                        <td>
+                                                            <span class="badge bg-secondary"><%= log.action %></span>
+                                                        </td>
+                                                        <td><%= log.description %></td>
+                                                    </tr>
+                                                <% }) %>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                <% } else { %>
+                                    <p class="text-muted">No recent activity</p>
+                                <% } %>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-lightning"></i> Quick Actions
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <a href="/admin/elections/create" class="btn btn-primary w-100 mb-2">
+                                            <i class="bi bi-plus-circle"></i> Create Election
+                                        </a>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <a href="/admin/candidates/create" class="btn btn-success w-100 mb-2">
+                                            <i class="bi bi-person-plus"></i> Add Candidate
+                                        </a>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <a href="/admin/voters" class="btn btn-warning w-100 mb-2">
+                                            <i class="bi bi-person-check"></i> Verify Voters
+                                        </a>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <a href="/admin/results" class="btn btn-info w-100 mb-2">
+                                            <i class="bi bi-bar-chart"></i> View Results
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Initialize real-time clock
+function updateClock() {
+    const now = new Date();
+    document.getElementById('currentTime').textContent = now.toLocaleString();
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// Auto-refresh dashboard every 30 seconds
+setInterval(() => {
+    if (document.visibilityState === 'visible') {
+        location.reload();
+    }
+}, 30000);
+</script>

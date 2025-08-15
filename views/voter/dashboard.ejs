@@ -1,0 +1,281 @@
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-2 sidebar">
+            <div class="p-3">
+                <h5 class="text-primary">
+                    <i class="bi bi-person-circle"></i> Voter Panel
+                </h5>
+                <nav class="nav flex-column mt-3">
+                    <a class="nav-link active" href="/voter/dashboard">
+                        <i class="bi bi-house-door"></i> Dashboard
+                    </a>
+                    <a class="nav-link" href="/voter/elections">
+                        <i class="bi bi-calendar-event"></i> Elections
+                    </a>
+                    <a class="nav-link" href="/voter/history">
+                        <i class="bi bi-clock-history"></i> Voting History
+                    </a>
+                    <a class="nav-link" href="/voter/profile">
+                        <i class="bi bi-person-gear"></i> Profile
+                    </a>
+                    <a class="nav-link" href="/voter/notifications">
+                        <i class="bi bi-bell"></i> Notifications
+                    </a>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-md-9 col-lg-10">
+            <div class="p-4">
+                <!-- Header -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2>
+                        <i class="bi bi-person-circle"></i> 
+                        Welcome, <%= voter.full_name %>
+                    </h2>
+                    <div class="text-muted">
+                        <i class="bi bi-calendar3"></i>
+                        <%= new Date().toLocaleDateString() %>
+                    </div>
+                </div>
+
+                <!-- Voter Status Card -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-md-8">
+                                        <h5 class="card-title">
+                                            <i class="bi bi-check-circle"></i> 
+                                            Voter Status: 
+                                            <% if (voter.is_verified === 'Y') { %>
+                                                <span class="badge bg-success">Verified</span>
+                                            <% } else { %>
+                                                <span class="badge bg-warning">Pending Verification</span>
+                                            <% } %>
+                                        </h5>
+                                        <p class="card-text">
+                                            Voter ID: <%= voter.voter_id %><br>
+                                            Email: <%= voter.email %><br>
+                                            Registered: <%= new Date(voter.registration_date).toLocaleDateString() %>
+                                        </p>
+                                    </div>
+                                    <div class="col-md-4 text-end">
+                                        <i class="bi bi-person-badge" style="font-size: 4rem; opacity: 0.5;"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Available Elections -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-calendar-event"></i> Available Elections
+                                </h5>
+                                <a href="/voter/elections" class="btn btn-outline-primary btn-sm">
+                                    View All Elections
+                                </a>
+                            </div>
+                            <div class="card-body">
+                                <% if (elections && elections.length > 0) { %>
+                                    <% elections.forEach(election => { %>
+                                        <div class="card mb-3">
+                                            <div class="card-body">
+                                                <div class="row align-items-center">
+                                                    <div class="col-md-8">
+                                                        <h6 class="card-title"><%= election.name %></h6>
+                                                        <p class="card-text text-muted">
+                                                            <%= election.description || 'No description available' %>
+                                                        </p>
+                                                        <small class="text-muted">
+                                                            <i class="bi bi-calendar3"></i> 
+                                                            Election Date: <%= new Date(election.election_date).toLocaleDateString() %>
+                                                        </small>
+                                                    </div>
+                                                    <div class="col-md-4 text-end">
+                                                        <% 
+                                                        let statusBadge = 'secondary';
+                                                        let statusText = 'Inactive';
+                                                        let canVote = false;
+                                                        
+                                                        if (election.status === 'upcoming') {
+                                                            statusBadge = 'warning';
+                                                            statusText = 'Upcoming';
+                                                        } else if (election.status === 'active') {
+                                                            statusBadge = 'success';
+                                                            statusText = 'Active';
+                                                            canVote = true;
+                                                        } else if (election.status === 'ended') {
+                                                            statusBadge = 'danger';
+                                                            statusText = 'Ended';
+                                                        }
+                                                        %>
+                                                        
+                                                        <span class="badge bg-<%= statusBadge %> mb-2"><%= statusText %></span><br>
+                                                        
+                                                        <% if (election.has_voted > 0) { %>
+                                                            <span class="badge bg-info mb-2">Already Voted</span><br>
+                                                            <a href="/election/<%= election.election_id %>" class="btn btn-outline-primary btn-sm">
+                                                                View Results
+                                                            </a>
+                                                        <% } else if (canVote && voter.is_verified === 'Y') { %>
+                                                            <a href="/voter/elections/<%= election.election_id %>/vote" class="btn btn-success btn-sm">
+                                                                <i class="bi bi-check-circle"></i> Vote Now
+                                                            </a>
+                                                        <% } else { %>
+                                                            <a href="/election/<%= election.election_id %>" class="btn btn-outline-secondary btn-sm">
+                                                                View Details
+                                                            </a>
+                                                        <% } %>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <% }) %>
+                                <% } else { %>
+                                    <div class="alert alert-info">
+                                        <i class="bi bi-info-circle"></i> No elections available at the moment.
+                                    </div>
+                                <% } %>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dashboard Grid -->
+                <div class="row">
+                    <!-- Voting History -->
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-clock-history"></i> Recent Voting History
+                                </h5>
+                                <a href="/voter/history" class="btn btn-outline-primary btn-sm">
+                                    View All
+                                </a>
+                            </div>
+                            <div class="card-body">
+                                <% if (votingHistory && votingHistory.length > 0) { %>
+                                    <% votingHistory.slice(0, 5).forEach(vote => { %>
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <div>
+                                                <h6 class="mb-1"><%= vote.election_name %></h6>
+                                                <p class="mb-1 text-muted">
+                                                    Voted for: <strong><%= vote.candidate_name %></strong> 
+                                                    (<%= vote.party %>)
+                                                </p>
+                                                <small class="text-muted">
+                                                    <i class="bi bi-clock"></i> 
+                                                    <%= new Date(vote.vote_timestamp).toLocaleString() %>
+                                                </small>
+                                            </div>
+                                            <span class="badge bg-success">
+                                                <i class="bi bi-check"></i>
+                                            </span>
+                                        </div>
+                                    <% }) %>
+                                <% } else { %>
+                                    <p class="text-muted">No voting history yet.</p>
+                                <% } %>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notifications -->
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-bell"></i> Recent Notifications
+                                </h5>
+                                <a href="/voter/notifications" class="btn btn-outline-primary btn-sm">
+                                    View All
+                                </a>
+                            </div>
+                            <div class="card-body">
+                                <% if (notifications && notifications.length > 0) { %>
+                                    <% notifications.forEach(notification => { %>
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <div class="flex-grow-1">
+                                                <p class="mb-1"><%= notification.message %></p>
+                                                <small class="text-muted">
+                                                    <i class="bi bi-clock"></i> 
+                                                    <%= new Date(notification.created_at).toLocaleString() %>
+                                                </small>
+                                            </div>
+                                            <% if (notification.is_read === 'N') { %>
+                                                <span class="badge bg-primary">New</span>
+                                            <% } %>
+                                        </div>
+                                    <% }) %>
+                                <% } else { %>
+                                    <p class="text-muted">No notifications.</p>
+                                <% } %>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-lightning"></i> Quick Actions
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <a href="/voter/elections" class="btn btn-primary w-100 mb-2">
+                                            <i class="bi bi-calendar-event"></i> Browse Elections
+                                        </a>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <a href="/voter/history" class="btn btn-info w-100 mb-2">
+                                            <i class="bi bi-clock-history"></i> View History
+                                        </a>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <a href="/voter/profile" class="btn btn-warning w-100 mb-2">
+                                            <i class="bi bi-person-gear"></i> Update Profile
+                                        </a>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <a href="/results" class="btn btn-success w-100 mb-2">
+                                            <i class="bi bi-bar-chart"></i> View Results
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Verification Alert -->
+                <% if (voter.is_verified !== 'Y') { %>
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle"></i>
+                                <strong>Account Verification Pending</strong><br>
+                                Your account is currently under review by our administrators. 
+                                You will be able to participate in elections once your account is verified.
+                            </div>
+                        </div>
+                    </div>
+                <% } %>
+            </div>
+        </div>
+    </div>
+</div>

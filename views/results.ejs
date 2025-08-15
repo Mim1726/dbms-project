@@ -1,0 +1,88 @@
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <h2><i class="bi bi-bar-chart"></i> Election Results</h2>
+            <p class="lead">View the results of completed elections</p>
+        </div>
+    </div>
+
+    <% if (results && results.length > 0) { %>
+        <%
+        // Group results by election
+        const resultsByElection = {};
+        results.forEach(result => {
+            if (!resultsByElection[result.election_name]) {
+                resultsByElection[result.election_name] = {
+                    election_name: result.election_name,
+                    election_type: result.election_type,
+                    candidates: []
+                };
+            }
+            resultsByElection[result.election_name].candidates.push(result);
+        });
+        %>
+
+        <% Object.values(resultsByElection).forEach(election => { %>
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <%= election.election_name %>
+                        <span class="badge bg-secondary ms-2"><%= election.election_type %></span>
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <% election.candidates.forEach((candidate, index) => { %>
+                            <div class="col-lg-6 mb-3">
+                                <div class="card <%= index === 0 ? 'border-success' : '' %>">
+                                    <div class="card-body">
+                                        <div class="row align-items-center">
+                                            <div class="col-3 text-center">
+                                                <% if (index === 0) { %>
+                                                    <i class="bi bi-trophy-fill text-warning" style="font-size: 2rem;"></i>
+                                                <% } else { %>
+                                                    <div class="bg-light rounded-circle d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                                        <span class="fw-bold text-muted"><%= candidate.symbol %></span>
+                                                    </div>
+                                                <% } %>
+                                            </div>
+                                            <div class="col-9">
+                                                <h5 class="mb-1">
+                                                    <%= candidate.full_name %>
+                                                    <% if (index === 0) { %>
+                                                        <span class="badge bg-success">Winner</span>
+                                                    <% } %>
+                                                </h5>
+                                                <p class="mb-1 text-muted"><%= candidate.party %></p>
+                                                <div class="d-flex align-items-center">
+                                                    <div class="progress flex-grow-1 me-3" style="height: 20px;">
+                                                        <div class="progress-bar bg-<%= index === 0 ? 'success' : 'primary' %>" 
+                                                             role="progressbar" 
+                                                             style="width: <%= candidate.percentage || 0 %>%">
+                                                            <%= candidate.percentage || 0 %>%
+                                                        </div>
+                                                    </div>
+                                                    <strong><%= candidate.total_votes %> votes</strong>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        <% }) %>
+                    </div>
+                </div>
+            </div>
+        <% }) %>
+    <% } else { %>
+        <div class="row">
+            <div class="col-12">
+                <div class="alert alert-info text-center">
+                    <i class="bi bi-info-circle" style="font-size: 3rem;"></i>
+                    <h4 class="mt-3">No Results Available</h4>
+                    <p>Election results will be displayed here once voting is completed and results are published.</p>
+                </div>
+            </div>
+        </div>
+    <% } %>
+</div>
