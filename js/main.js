@@ -17,6 +17,44 @@ class App {
 
     // Setup event listeners
     setupEventListeners() {
+        // Mobile menu toggle
+        const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+        const navMenu = document.getElementById('navMenu');
+        const mobileMenuBackdrop = document.getElementById('mobileMenuBackdrop');
+        
+        if (mobileMenuToggle && navMenu && mobileMenuBackdrop) {
+            mobileMenuToggle.addEventListener('click', () => {
+                mobileMenuToggle.classList.toggle('active');
+                navMenu.classList.toggle('active');
+                mobileMenuBackdrop.classList.toggle('active');
+                
+                // Prevent body scroll when menu is open
+                if (navMenu.classList.contains('active')) {
+                    document.body.style.overflow = 'hidden';
+                } else {
+                    document.body.style.overflow = '';
+                }
+            });
+            
+            // Close mobile menu when clicking on nav links
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.addEventListener('click', () => {
+                    mobileMenuToggle.classList.remove('active');
+                    navMenu.classList.remove('active');
+                    mobileMenuBackdrop.classList.remove('active');
+                    document.body.style.overflow = '';
+                });
+            });
+            
+            // Close mobile menu when clicking on backdrop
+            mobileMenuBackdrop.addEventListener('click', () => {
+                mobileMenuToggle.classList.remove('active');
+                navMenu.classList.remove('active');
+                mobileMenuBackdrop.classList.remove('active');
+                document.body.style.overflow = '';
+            });
+        }
+        
         // Navigation links
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
@@ -396,6 +434,9 @@ function togglePassword(inputId) {
 document.addEventListener('DOMContentLoaded', () => {
     window.App = new App();
     
+    // Clear any auto-filled password fields
+    clearAutoFilledPasswords();
+    
     // Setup keyboard shortcuts
     window.App.setupKeyboardShortcuts();
     
@@ -405,6 +446,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize service worker
     window.App.initServiceWorker();
 });
+
+// Clear auto-filled password fields on page load
+function clearAutoFilledPasswords() {
+    setTimeout(() => {
+        const passwordFields = [
+            'loginPassword',
+            'registerPassword', 
+            'registerConfirmPassword'
+        ];
+        
+        passwordFields.forEach(fieldId => {
+            const field = document.getElementById(fieldId);
+            if (field && field.value) {
+                field.value = '';
+            }
+        });
+    }, 100); // Small delay to ensure DOM is fully loaded
+}
 
 // Export App class
 window.App = App;

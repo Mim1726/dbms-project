@@ -8,7 +8,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Application Configuration
 const CONFIG = {
     // App settings
-    APP_NAME: 'VoteSystem',
+    APP_NAME: 'Online Voting Management System',
     VERSION: '1.0.0',
     
     // Session settings

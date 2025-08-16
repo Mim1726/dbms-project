@@ -1,4 +1,4 @@
-# Voting System - Supabase + JavaScript
+# Online Voting Management System - Supabase + JavaScript
 
 A modern, secure online voting management system built with **Supabase** (PostgreSQL) and **vanilla JavaScript**.
 

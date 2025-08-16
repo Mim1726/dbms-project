@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Online Voting System</title>
+    <title>Online Voting Management System</title>
     <link rel="stylesheet" href="css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -14,9 +14,17 @@
         <div class="nav-container">
             <div class="nav-brand">
                 <i class="fas fa-vote-yea"></i>
-                <span>VoteSystem</span>
+                <span>Online Voting Management System</span>
             </div>
-            <div class="nav-menu">
+            
+            <!-- Mobile Menu Toggle -->
+            <button class="mobile-menu-toggle" id="mobileMenuToggle">
+                <span class="hamburger"></span>
+                <span class="hamburger"></span>
+                <span class="hamburger"></span>
+            </button>
+            
+            <div class="nav-menu" id="navMenu">
                 <a href="#home" class="nav-link active">Home</a>
                 <a href="#about" class="nav-link">About</a>
                 <a href="#elections" class="nav-link">Elections</a>
@@ -24,10 +32,19 @@
                 <div class="auth-buttons">
                     <button id="loginBtn" class="btn btn-outline">Login</button>
                     <button id="registerBtn" class="btn btn-primary">Register</button>
-                    <button id="logoutBtn" class="btn btn-outline" style="display: none;">Logout</button>
+                    <div id="userInfo" style="display: none;" class="user-info">
+                        <span id="userName" class="user-name"></span>
+                        <span id="userRole" class="user-role"></span>
+                        <button id="logoutBtn" class="btn btn-outline">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
+        
+        <!-- Mobile Menu Backdrop -->
+        <div class="mobile-menu-backdrop" id="mobileMenuBackdrop"></div>
     </nav>
 
     <!-- Main Content -->
@@ -36,7 +53,7 @@
         <section id="home" class="section active">
             <div class="hero">
                 <div class="hero-content">
-                    <h1>Secure Online Voting</h1>
+                    <h1>Online Voting Management System</h1>
                     <p>Participate in democratic elections with transparency and security</p>
                     <div class="hero-buttons">
                         <button class="btn btn-primary btn-large" onclick="showSection('elections')">
@@ -76,7 +93,7 @@
         <!-- About Section -->
         <section id="about" class="section">
             <div class="container">
-                <h2>About Our Voting System</h2>
+                <h2>About Our Online Voting Management System</h2>
                 <div class="about-content">
                     <div class="feature-grid">
                         <div class="feature-card">

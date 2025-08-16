@@ -210,6 +210,9 @@ class Auth {
             // Close modal and show appropriate dashboard
             document.getElementById('authModal').style.display = 'none';
             
+            // Update UI to show logout button and hide login/register buttons
+            this.updateUIForAuthenticatedUser();
+            
             if (userType === 'admin') {
                 this.showAdminDashboard();
             } else {
@@ -349,9 +352,15 @@ class Auth {
             const { error } = await supabase.auth.signOut();
             if (error) throw error;
             
+            // Call the sign out handler to clean up the UI and state
+            this.handleSignOut();
+            
         } catch (error) {
             console.error('Sign out error:', error);
             Utils.showToast('Error signing out', 'error');
+            
+            // Even if Supabase sign out fails, clean up local state
+            this.handleSignOut();
         } finally {
             Utils.hideLoading();
         }
@@ -361,14 +370,27 @@ class Auth {
     updateUIForAuthenticatedUser() {
         document.getElementById('loginBtn').style.display = 'none';
         document.getElementById('registerBtn').style.display = 'none';
-        document.getElementById('logoutBtn').style.display = 'inline-block';
+        document.getElementById('userInfo').style.display = 'flex';
+        
+        // Update user name display
+        const userName = document.getElementById('userName');
+        const userRole = document.getElementById('userRole');
+        
+        if (this.currentUser && userName) {
+            userName.textContent = this.currentUser.full_name || this.currentUser.email;
+        }
+        
+        if (this.userRole && userRole) {
+            userRole.textContent = this.userRole;
+            userRole.className = `user-role role-${this.userRole}`;
+        }
     }
 
     // Update UI for unauthenticated user
     updateUIForUnauthenticatedUser() {
         document.getElementById('loginBtn').style.display = 'inline-block';
         document.getElementById('registerBtn').style.display = 'inline-block';
-        document.getElementById('logoutBtn').style.display = 'none';
+        document.getElementById('userInfo').style.display = 'none';
     }
 
     // Show admin dashboard
