@@ -88,6 +88,9 @@ class Auth {
         const loginForm = document.getElementById('loginForm');
         const registerForm = document.getElementById('registerForm');
 
+        // Clear all password fields to prevent auto-fill
+        this.clearPasswordFields();
+
         if (type === 'login') {
             loginForm.style.display = 'block';
             registerForm.style.display = 'none';
@@ -97,6 +100,31 @@ class Auth {
         }
 
         modal.style.display = 'block';
+    }
+
+    // Clear password fields to prevent auto-fill
+    clearPasswordFields() {
+        const passwordFields = [
+            'loginPassword',
+            'registerPassword', 
+            'registerConfirmPassword'
+        ];
+        
+        passwordFields.forEach(fieldId => {
+            const field = document.getElementById(fieldId);
+            if (field) {
+                field.value = '';
+            }
+        });
+        
+        // Also clear email fields to be safe
+        const emailFields = ['loginEmail', 'registerEmail'];
+        emailFields.forEach(fieldId => {
+            const field = document.getElementById(fieldId);
+            if (field) {
+                field.value = '';
+            }
+        });
     }
 
     // Handle login
@@ -472,11 +500,13 @@ class Auth {
 
 // Switch between login and register forms
 function switchToRegister() {
+    window.Auth.clearPasswordFields();
     document.getElementById('loginForm').style.display = 'none';
     document.getElementById('registerForm').style.display = 'block';
 }
 
 function switchToLogin() {
+    window.Auth.clearPasswordFields();
     document.getElementById('loginForm').style.display = 'block';
     document.getElementById('registerForm').style.display = 'none';
 }

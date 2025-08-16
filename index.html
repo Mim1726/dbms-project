@@ -120,7 +120,12 @@
                     </div>
                     <div class="form-group">
                         <label for="loginPassword">Password</label>
-                        <input type="password" id="loginPassword" required>
+                        <div class="password-input-container">
+                            <input type="password" id="loginPassword" required autocomplete="current-password">
+                            <span class="password-toggle" onclick="togglePassword('loginPassword')">
+                                <i class="fas fa-eye" id="loginPasswordIcon"></i>
+                            </span>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>
@@ -152,11 +157,22 @@
                     </div>
                     <div class="form-group">
                         <label for="registerPassword">Password</label>
-                        <input type="password" id="registerPassword" required>
+                        <div class="password-input-container">
+                            <input type="password" id="registerPassword" required minlength="6" autocomplete="new-password">
+                            <span class="password-toggle" onclick="togglePassword('registerPassword')">
+                                <i class="fas fa-eye" id="registerPasswordIcon"></i>
+                            </span>
+                        </div>
+                        <small class="password-help">Password should be minimum 6 characters long</small>
                     </div>
                     <div class="form-group">
                         <label for="registerConfirmPassword">Confirm Password</label>
-                        <input type="password" id="registerConfirmPassword" required>
+                        <div class="password-input-container">
+                            <input type="password" id="registerConfirmPassword" required minlength="6" autocomplete="new-password">
+                            <span class="password-toggle" onclick="togglePassword('registerConfirmPassword')">
+                                <i class="fas fa-eye" id="registerConfirmPasswordIcon"></i>
+                            </span>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="registerPhone">Phone Number</label>
