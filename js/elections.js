@@ -158,10 +158,25 @@ class Elections {
 
     // Check if user is eligible to vote
     async checkVotingEligibility(electionId) {
+        console.log('Checking voting eligibility for election:', electionId);
+        
+        // Check authentication first
+        if (!window.Auth || !window.Auth.isAuthenticated()) {
+            Utils.showToast('Please log in to vote', 'warning');
+            window.Auth?.showAuthModal('login');
+            return;
+        }
+
+        if (!window.Auth.hasRole('voter')) {
+            Utils.showToast('Only verified voters can vote', 'warning');
+            return;
+        }
+
         Utils.showLoading();
         
         try {
             const currentUser = window.Auth.getCurrentUser();
+            console.log('Current user:', currentUser);
             
             // Get voter record
             const { data: voterData, error: voterError } = await supabase
@@ -170,7 +185,12 @@ class Elections {
                 .eq('user_id', currentUser.id)
                 .single();
 
-            if (voterError) throw voterError;
+            if (voterError) {
+                console.error('Voter lookup error:', voterError);
+                throw voterError;
+            }
+
+            console.log('Voter data:', voterData);
 
             // Check if voter is verified
             if (!voterData.is_verified) {
@@ -187,6 +207,7 @@ class Elections {
                 .single();
 
             if (voteError && voteError.code !== 'PGRST116') { // PGRST116 means no rows found
+                console.error('Vote check error:', voteError);
                 throw voteError;
             }
 
@@ -195,14 +216,19 @@ class Elections {
                 return;
             }
 
+            console.log('User is eligible to vote, starting voting process...');
+
             // User is eligible to vote
             if (window.Voting) {
                 window.Voting.startVoting(electionId);
+            } else {
+                console.error('Voting module not loaded');
+                Utils.showToast('Voting system not available', 'error');
             }
             
         } catch (error) {
             console.error('Error checking voting eligibility:', error);
-            Utils.showToast('Error checking voting eligibility', 'error');
+            Utils.showToast(`Error checking voting eligibility: ${error.message}`, 'error');
         } finally {
             Utils.hideLoading();
         }

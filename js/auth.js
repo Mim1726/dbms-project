@@ -378,6 +378,7 @@ class Auth {
         
         if (this.currentUser && userName) {
             userName.textContent = this.currentUser.full_name || this.currentUser.email;
+            userName.title = 'Click to view profile'; // Add tooltip
         }
         
         if (this.userRole && userRole) {
@@ -462,20 +463,69 @@ class Auth {
                     <p>Status: ${voterData.is_verified ? 'Verified' : 'Pending Verification'}</p>
                 </div>
 
-                <div class="active-elections">
-                    <h3>Active Elections</h3>
-                    <div class="elections-grid">
-                        ${elections.map(election => `
-                            <div class="election-card">
-                                <h4>${Utils.sanitizeHtml(election.name)}</h4>
-                                <p>${Utils.sanitizeHtml(election.description || 'No description available')}</p>
-                                <p>Date: ${Utils.formatDate(election.election_date)}</p>
-                                <p>Type: ${Utils.sanitizeHtml(election.election_type)}</p>
-                                <button class="btn btn-primary" onclick="window.Voting.startVoting('${election.election_id}')">
-                                    Vote Now
-                                </button>
-                            </div>
-                        `).join('')}
+                <div class="dashboard-tabs">
+                    <button class="tab-btn active" onclick="showVoterTab('elections')">Active Elections</button>
+                    <button class="tab-btn" onclick="showVoterTab('candidacy')">Apply for Candidacy</button>
+                    <button class="tab-btn" onclick="showVoterTab('applications')">My Applications</button>
+                </div>
+
+                <div id="voterTabContent">
+                    <div id="elections-tab" class="voter-tab-content active">
+                        <h3>Active Elections</h3>
+                        <div class="elections-grid">
+                            ${elections.map(election => `
+                                <div class="election-card">
+                                    <h4>${Utils.sanitizeHtml(election.name)}</h4>
+                                    <p>${Utils.sanitizeHtml(election.description || 'No description available')}</p>
+                                    <p>Date: ${Utils.formatDate(election.election_date)}</p>
+                                    <p>Type: ${Utils.sanitizeHtml(election.election_type)}</p>
+                                    <button class="btn btn-primary" onclick="window.Voting.startVoting('${election.election_id}')">
+                                        Vote Now
+                                    </button>
+                                    <button class="btn btn-outline" onclick="showCandidatesForElection('${election.election_id}')">
+                                        View Candidates
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div id="candidacy-tab" class="voter-tab-content" style="display: none;">
+                        <h3>Apply for Candidacy</h3>
+                        <div class="candidacy-application">
+                            <form id="candidacyApplicationForm">
+                                <div class="form-group">
+                                    <label for="electionSelect">Select Election</label>
+                                    <select id="electionSelect" required>
+                                        <option value="">Choose an election...</option>
+                                        ${elections.map(election => `
+                                            <option value="${election.election_id}">${Utils.sanitizeHtml(election.name)}</option>
+                                        `).join('')}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="candidateBio">Biography</label>
+                                    <textarea id="candidateBio" rows="4" required placeholder="Tell voters about yourself, your qualifications, and your vision..."></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label for="candidateManifesto">Campaign Manifesto</label>
+                                    <textarea id="candidateManifesto" rows="6" required placeholder="Describe your campaign promises and goals..."></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label for="candidatePhoto">Profile Photo (Optional)</label>
+                                    <input type="file" id="candidatePhoto" accept="image/*">
+                                    <small>Recommended: Square image, max 2MB</small>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Submit Application</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div id="applications-tab" class="voter-tab-content" style="display: none;">
+                        <h3>My Candidacy Applications</h3>
+                        <div id="applicationsContainer">
+                            <!-- Applications will be loaded here -->
+                        </div>
                     </div>
                 </div>
 
@@ -492,6 +542,12 @@ class Auth {
                     </div>
                 </div>
             `;
+
+            // Setup candidate application form handler
+            this.setupCandidacyApplication(voterData.id);
+            
+            // Load user's candidacy applications
+            this.loadUserApplications(voterData.id);
 
         } catch (error) {
             console.error('Error loading voter dashboard:', error);
@@ -517,6 +573,287 @@ class Auth {
     // Get user role
     getUserRole() {
         return this.userRole;
+    }
+
+    // Setup candidacy application form handler
+    async setupCandidacyApplication(voterId) {
+        const form = document.getElementById('candidacyApplicationForm');
+        if (!form) return;
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(form);
+            const electionId = formData.get('electionSelect');
+            const bio = formData.get('candidateBio');
+            const manifesto = formData.get('candidateManifesto');
+            const photo = formData.get('candidatePhoto');
+
+            try {
+                // Check if user already applied for this election
+                const { data: existingApplication } = await supabase
+                    .from('candidate')
+                    .select('*')
+                    .eq('voter_id', voterId)
+                    .eq('election_id', electionId)
+                    .single();
+
+                if (existingApplication) {
+                    Utils.showMessage('You have already applied for this election', 'error');
+                    return;
+                }
+
+                // Handle photo upload if provided
+                let photoUrl = null;
+                if (photo && photo.size > 0) {
+                    const fileExt = photo.name.split('.').pop();
+                    const fileName = `candidate_${voterId}_${Date.now()}.${fileExt}`;
+                    
+                    const { data: uploadData, error: uploadError } = await supabase.storage
+                        .from('candidate-photos')
+                        .upload(fileName, photo);
+
+                    if (uploadError) {
+                        console.error('Photo upload error:', uploadError);
+                        Utils.showMessage('Photo upload failed, but application will continue', 'warning');
+                    } else {
+                        const { data: urlData } = supabase.storage
+                            .from('candidate-photos')
+                            .getPublicUrl(fileName);
+                        photoUrl = urlData.publicUrl;
+                    }
+                }
+
+                // Submit candidacy application
+                const { data, error } = await supabase
+                    .from('candidate')
+                    .insert({
+                        voter_id: voterId,
+                        election_id: electionId,
+                        bio: bio,
+                        manifesto: manifesto,
+                        photo_url: photoUrl,
+                        approval_status: 'pending',
+                        application_date: new Date().toISOString()
+                    });
+
+                if (error) throw error;
+
+                Utils.showMessage('Candidacy application submitted successfully! Awaiting admin approval.', 'success');
+                form.reset();
+                
+                // Refresh applications tab
+                this.loadUserApplications(voterId);
+                
+                // Switch to applications tab to show the new application
+                showVoterTab('applications');
+
+            } catch (error) {
+                console.error('Error submitting candidacy application:', error);
+                Utils.showMessage('Failed to submit application. Please try again.', 'error');
+            }
+        });
+    }
+
+    // Load user's candidacy applications
+    async loadUserApplications(voterId) {
+        try {
+            const { data: applications, error } = await supabase
+                .from('candidate')
+                .select(`
+                    *,
+                    election:election_id (
+                        name,
+                        election_date,
+                        election_type
+                    )
+                `)
+                .eq('voter_id', voterId)
+                .order('application_date', { ascending: false });
+
+            if (error) throw error;
+
+            const container = document.getElementById('applicationsContainer');
+            if (!container) return;
+
+            if (applications && applications.length > 0) {
+                container.innerHTML = applications.map(app => `
+                    <div class="application-card">
+                        <div class="application-header">
+                            <h4>${Utils.sanitizeHtml(app.election?.name || 'Unknown Election')}</h4>
+                            <span class="status-badge status-${app.approval_status}">${app.approval_status.toUpperCase()}</span>
+                        </div>
+                        <div class="application-details">
+                            <p><strong>Election Date:</strong> ${Utils.formatDate(app.election?.election_date)}</p>
+                            <p><strong>Applied:</strong> ${Utils.formatDate(app.application_date)}</p>
+                            <p><strong>Bio:</strong> ${Utils.sanitizeHtml(app.bio)}</p>
+                            <p><strong>Manifesto:</strong> ${Utils.sanitizeHtml(app.manifesto)}</p>
+                            ${app.photo_url ? `<img src="${app.photo_url}" alt="Candidate Photo" class="candidate-photo-small">` : ''}
+                        </div>
+                        ${app.approval_status === 'pending' ? `
+                            <button class="btn btn-outline" onclick="withdrawApplication('${app.candidate_id}')">
+                                Withdraw Application
+                            </button>
+                        ` : ''}
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = '<p>No candidacy applications yet.</p>';
+            }
+        } catch (error) {
+            console.error('Error loading applications:', error);
+            const container = document.getElementById('applicationsContainer');
+            if (container) {
+                container.innerHTML = '<p>Error loading applications. Please try again.</p>';
+            }
+        }
+    }
+}
+
+// Voter dashboard tab switching
+function showVoterTab(tabName) {
+    // Hide all tabs
+    const tabs = document.querySelectorAll('.voter-tab-content');
+    tabs.forEach(tab => tab.style.display = 'none');
+    
+    // Remove active class from all buttons
+    const buttons = document.querySelectorAll('.tab-btn');
+    buttons.forEach(btn => btn.classList.remove('active'));
+    
+    // Show selected tab
+    const selectedTab = document.getElementById(`${tabName}-tab`);
+    if (selectedTab) {
+        selectedTab.style.display = 'block';
+    }
+    
+    // Add active class to clicked button
+    const activeButton = document.querySelector(`[onclick="showVoterTab('${tabName}')"]`);
+    if (activeButton) {
+        activeButton.classList.add('active');
+    }
+}
+
+// Show candidates for a specific election
+async function showCandidatesForElection(electionId) {
+    try {
+        const { data: candidates, error } = await supabase
+            .from('candidate')
+            .select(`
+                *,
+                voter:voter_id (full_name, email),
+                election:election_id (name)
+            `)
+            .eq('election_id', electionId)
+            .eq('approval_status', 'approved');
+
+        if (error) throw error;
+
+        const { data: election, error: electionError } = await supabase
+            .from('election')
+            .select('*')
+            .eq('election_id', electionId)
+            .single();
+
+        if (electionError) throw electionError;
+
+        // Create modal for candidates
+        const modal = document.createElement('div');
+        modal.className = 'modal candidates-modal';
+        modal.innerHTML = `
+            <div class="modal-content large-modal">
+                <div class="modal-header">
+                    <h2>Candidates for ${Utils.sanitizeHtml(election.name)}</h2>
+                    <span class="close" onclick="this.closest('.modal').remove()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    ${candidates && candidates.length > 0 ? `
+                        <div class="candidates-grid">
+                            ${candidates.map(candidate => `
+                                <div class="candidate-card">
+                                    ${candidate.photo_url ? `
+                                        <img src="${candidate.photo_url}" alt="Candidate Photo" class="candidate-photo">
+                                    ` : `
+                                        <div class="candidate-photo-placeholder">
+                                            <i class="fas fa-user"></i>
+                                        </div>
+                                    `}
+                                    <div class="candidate-info">
+                                        <h4>${Utils.sanitizeHtml(candidate.voter?.full_name || 'Unknown Candidate')}</h4>
+                                        <p class="candidate-email">${Utils.sanitizeHtml(candidate.voter?.email || '')}</p>
+                                        <div class="candidate-bio">
+                                            <h5>Biography</h5>
+                                            <p>${Utils.sanitizeHtml(candidate.bio || 'No biography provided')}</p>
+                                        </div>
+                                        <div class="candidate-manifesto">
+                                            <h5>Campaign Manifesto</h5>
+                                            <p>${Utils.sanitizeHtml(candidate.manifesto || 'No manifesto provided')}</p>
+                                        </div>
+                                        <button class="btn btn-primary" onclick="selectCandidateForVoting('${candidate.candidate_id}', '${electionId}')">
+                                            Vote for this Candidate
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : '<p>No approved candidates yet for this election.</p>'}
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+        modal.style.display = 'block';
+
+    } catch (error) {
+        console.error('Error loading candidates:', error);
+        Utils.showMessage('Failed to load candidates. Please try again.', 'error');
+    }
+}
+
+// Select candidate for voting (integrated with existing voting system)
+function selectCandidateForVoting(candidateId, electionId) {
+    // Close candidates modal
+    const modal = document.querySelector('.candidates-modal');
+    if (modal) modal.remove();
+    
+    // Start voting process with pre-selected candidate
+    if (window.Voting) {
+        window.Voting.startVoting(electionId, candidateId);
+    }
+}
+
+// Withdraw candidacy application
+async function withdrawApplication(candidateId) {
+    if (!confirm('Are you sure you want to withdraw this application? This action cannot be undone.')) {
+        return;
+    }
+
+    try {
+        const { error } = await supabase
+            .from('candidate')
+            .delete()
+            .eq('candidate_id', candidateId);
+
+        if (error) throw error;
+
+        Utils.showMessage('Application withdrawn successfully', 'success');
+        
+        // Refresh applications
+        const voter = window.Auth.getCurrentUser();
+        if (voter) {
+            const { data: voterData } = await supabase
+                .from('voter')
+                .select('*')
+                .eq('user_id', voter.id)
+                .single();
+            
+            if (voterData) {
+                window.Auth.loadUserApplications(voterData.id);
+            }
+        }
+
+    } catch (error) {
+        console.error('Error withdrawing application:', error);
+        Utils.showMessage('Failed to withdraw application. Please try again.', 'error');
     }
 }
 

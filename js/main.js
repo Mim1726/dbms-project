@@ -430,6 +430,194 @@ function togglePassword(inputId) {
     }
 }
 
+// Show user profile modal
+async function showUserProfile() {
+    if (!window.Auth || !window.Auth.isAuthenticated()) {
+        Utils.showToast('Please log in to view profile', 'warning');
+        return;
+    }
+
+    const modal = document.getElementById('userProfileModal');
+    const content = document.getElementById('userProfileContent');
+    
+    Utils.showLoading();
+    
+    try {
+        const currentUser = window.Auth.getCurrentUser();
+        const userRole = window.Auth.getUserRole();
+        
+        let userData = null;
+        let profileData = {};
+        
+        if (userRole === 'admin') {
+            // Get admin details
+            const { data, error } = await supabase
+                .from('admin')
+                .select('*')
+                .eq('admin_id', currentUser.id)
+                .single();
+                
+            if (error) throw error;
+            userData = data;
+            
+            profileData = {
+                name: userData.full_name || userData.email,
+                email: userData.email,
+                role: 'Admin',
+                phone: userData.phone || 'Not provided',
+                permissions: userData.permissions || 'Full Access',
+                created_at: userData.created_at,
+                last_login: 'Just now'
+            };
+            
+        } else if (userRole === 'voter') {
+            // Get voter details
+            const { data, error } = await supabase
+                .from('voter')
+                .select('*')
+                .eq('voter_id', currentUser.id)
+                .single();
+                
+            if (error) throw error;
+            userData = data;
+            
+            profileData = {
+                name: userData.full_name || userData.email,
+                email: userData.email,
+                role: 'Voter',
+                phone: userData.phone || 'Not provided',
+                address: userData.address || 'Not provided',
+                dob: userData.dob ? new Date(userData.dob).toLocaleDateString() : 'Not provided',
+                verification_status: userData.is_verified === 'Y' ? 'verified' : 'pending',
+                registered_at: userData.created_at
+            };
+        }
+        
+        // Generate profile HTML
+        const profileHTML = generateProfileHTML(profileData, userRole);
+        content.innerHTML = profileHTML;
+        
+        // Show modal
+        modal.style.display = 'block';
+        
+    } catch (error) {
+        console.error('Error loading user profile:', error);
+        Utils.showToast('Error loading profile data', 'error');
+    } finally {
+        Utils.hideLoading();
+    }
+}
+
+// Generate profile HTML
+function generateProfileHTML(profileData, userRole) {
+    const firstLetter = profileData.name.charAt(0).toUpperCase();
+    
+    return `
+        <div class="user-profile">
+            <div class="profile-header">
+                <div class="profile-avatar">
+                    ${firstLetter}
+                </div>
+                <div class="profile-name">${Utils.sanitizeHtml(profileData.name)}</div>
+                <span class="profile-role role-${userRole.toLowerCase()}">${profileData.role}</span>
+            </div>
+            
+            <div class="profile-details">
+                <div class="profile-section">
+                    <h3><i class="fas fa-user"></i> Personal Information</h3>
+                    <div class="profile-field">
+                        <span class="profile-field-label">Full Name</span>
+                        <span class="profile-field-value">${Utils.sanitizeHtml(profileData.name)}</span>
+                    </div>
+                    <div class="profile-field">
+                        <span class="profile-field-label">Email</span>
+                        <span class="profile-field-value">${Utils.sanitizeHtml(profileData.email)}</span>
+                    </div>
+                    <div class="profile-field">
+                        <span class="profile-field-label">Phone</span>
+                        <span class="profile-field-value">${Utils.sanitizeHtml(profileData.phone)}</span>
+                    </div>
+                    ${userRole === 'voter' ? `
+                        <div class="profile-field">
+                            <span class="profile-field-label">Address</span>
+                            <span class="profile-field-value">${Utils.sanitizeHtml(profileData.address)}</span>
+                        </div>
+                        <div class="profile-field">
+                            <span class="profile-field-label">Date of Birth</span>
+                            <span class="profile-field-value">${Utils.sanitizeHtml(profileData.dob)}</span>
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <div class="profile-section">
+                    <h3><i class="fas fa-shield-alt"></i> Account Status</h3>
+                    <div class="profile-field">
+                        <span class="profile-field-label">Role</span>
+                        <span class="profile-field-value">${profileData.role}</span>
+                    </div>
+                    ${userRole === 'voter' ? `
+                        <div class="profile-field">
+                            <span class="profile-field-label">Verification Status</span>
+                            <span class="profile-field-value">
+                                <span class="verification-status ${profileData.verification_status}">
+                                    ${profileData.verification_status === 'verified' ? 'Verified' : 'Pending Verification'}
+                                </span>
+                            </span>
+                        </div>
+                        <div class="profile-field">
+                            <span class="profile-field-label">Registered</span>
+                            <span class="profile-field-value">${formatDate(profileData.registered_at)}</span>
+                        </div>
+                    ` : `
+                        <div class="profile-field">
+                            <span class="profile-field-label">Permissions</span>
+                            <span class="profile-field-value">${Utils.sanitizeHtml(profileData.permissions)}</span>
+                        </div>
+                        <div class="profile-field">
+                            <span class="profile-field-label">Last Login</span>
+                            <span class="profile-field-value">${profileData.last_login}</span>
+                        </div>
+                    `}
+                </div>
+            </div>
+            
+            <div class="profile-actions">
+                <button class="btn btn-outline" onclick="closeUserProfile()">
+                    <i class="fas fa-times"></i> Close
+                </button>
+                <button class="btn btn-primary" onclick="editUserProfile()">
+                    <i class="fas fa-edit"></i> Edit Profile
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Close user profile modal
+function closeUserProfile() {
+    const modal = document.getElementById('userProfileModal');
+    modal.style.display = 'none';
+}
+
+// Edit user profile (placeholder)
+function editUserProfile() {
+    Utils.showToast('Profile editing will be available in a future update', 'info');
+}
+
+// Format date helper
+function formatDate(dateString) {
+    if (!dateString) return 'Not available';
+    try {
+        return new Date(dateString).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    } catch (error) {
+        return 'Invalid date';
+    }
+}
+
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.App = new App();

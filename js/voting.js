@@ -18,25 +18,58 @@ class Voting {
     }
 
     // Start voting process
-    async startVoting(electionId) {
+    async startVoting(electionId, preSelectedCandidateId = null) {
+        console.log('Starting voting process for election:', electionId);
+        if (preSelectedCandidateId) {
+            console.log('Pre-selected candidate:', preSelectedCandidateId);
+        }
+        
+        // Check if user is authenticated
+        if (!window.Auth || !window.Auth.isAuthenticated()) {
+            Utils.showToast('Please log in to vote', 'warning');
+            window.Auth?.showAuthModal('login');
+            return;
+        }
+
+        // Check if user is a voter
+        if (!window.Auth.hasRole('voter')) {
+            Utils.showToast('Only verified voters can vote', 'warning');
+            return;
+        }
+
         Utils.showLoading();
         
         try {
+            console.log('Fetching election details...');
+            
             // Get election details
             const { data: election, error: electionError } = await supabase
                 .from(CONFIG.TABLES.ELECTIONS)
                 .select('*')
-                .eq('id', electionId)
+                .eq('election_id', electionId)  // Changed from 'id' to 'election_id'
                 .single();
 
-            if (electionError) throw electionError;
+            if (electionError) {
+                console.error('Election fetch error:', electionError);
+                throw electionError;
+            }
+
+            if (!election) {
+                throw new Error('Election not found');
+            }
+
+            console.log('Election found:', election);
 
             // Verify election is active
             const status = this.getElectionStatus(election);
+            console.log('Election status:', status);
+            
             if (status !== 'Active') {
                 Utils.showToast('This election is not currently active', 'warning');
                 return;
             }
+
+            console.log('Fetching candidates...');
 
             // Get candidates
             const { data: candidates, error: candidatesError } = await supabase
@@ -45,7 +78,12 @@ class Voting {
                 .eq('election_id', electionId)
                 .order('name');
 
-            if (candidatesError) throw candidatesError;
+            if (candidatesError) {
+                console.error('Candidates fetch error:', candidatesError);
+                throw candidatesError;
+            }
+
+            console.log('Candidates found:', candidates);
 
             if (!candidates || candidates.length === 0) {
                 Utils.showToast('No candidates found for this election', 'warning');
@@ -54,13 +92,14 @@ class Voting {
 
             this.currentElection = election;
             this.currentCandidates = candidates;
-            this.selectedCandidate = null;
+            this.selectedCandidate = preSelectedCandidateId || null;
 
-            this.showVotingInterface();
+            console.log('Showing voting interface...');
+            this.showVotingInterface(preSelectedCandidateId);
             
         } catch (error) {
             console.error('Error starting voting:', error);
-            Utils.showToast('Error loading voting interface', 'error');
+            Utils.showToast(`Error loading voting interface: ${error.message}`, 'error');
         } finally {
             Utils.hideLoading();
         }
@@ -82,7 +121,7 @@ class Voting {
     }
 
     // Show voting interface
-    showVotingInterface() {
+    showVotingInterface(preSelectedCandidateId = null) {
         const modal = document.getElementById('votingModal');
         const content = document.getElementById('votingContent');
 
@@ -101,6 +140,7 @@ class Voting {
                                        name="selectedCandidate" 
                                        value="${candidate.id}" 
                                        id="candidate_${candidate.id}"
+                                       ${preSelectedCandidateId === candidate.id ? 'checked' : ''}
                                        onchange="window.Voting.selectCandidate('${candidate.id}')">
                                 <label for="candidate_${candidate.id}" class="candidate-card-voting">
                                     <div class="candidate-photo-container">
@@ -134,7 +174,7 @@ class Voting {
                     <button class="btn btn-outline" onclick="window.Voting.cancelVoting()">
                         <i class="fas fa-times"></i> Cancel
                     </button>
-                    <button id="confirmVoteBtn" class="btn btn-primary" disabled onclick="window.Voting.confirmVote()">
+                    <button id="confirmVoteBtn" class="btn btn-primary" ${preSelectedCandidateId ? '' : 'disabled'} onclick="window.Voting.confirmVote()">
                         <i class="fas fa-vote-yea"></i> Confirm Vote
                     </button>
                 </div>
@@ -145,6 +185,17 @@ class Voting {
                 </div>
             </div>
         `;
+
+        // Set pre-selected candidate if provided
+        if (preSelectedCandidateId) {
+            this.selectedCandidate = preSelectedCandidateId;
+            
+            // Update UI to show pre-selection
+            const preSelectedCard = document.querySelector(`[data-candidate-id="${preSelectedCandidateId}"]`);
+            if (preSelectedCard) {
+                preSelectedCard.classList.add('selected');
+            }
+        }
 
         modal.style.display = 'block';
     }

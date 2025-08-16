@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Online Voting Management System</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=1.2">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -33,7 +33,7 @@
                     <button id="loginBtn" class="btn btn-outline">Login</button>
                     <button id="registerBtn" class="btn btn-primary">Register</button>
                     <div id="userInfo" style="display: none;" class="user-info">
-                        <span id="userName" class="user-name"></span>
+                        <span id="userName" class="user-name" onclick="showUserProfile()" style="cursor: pointer;"></span>
                         <span id="userRole" class="user-role"></span>
                         <button id="logoutBtn" class="btn btn-outline">
                             <i class="fas fa-sign-out-alt"></i> Logout
@@ -215,6 +215,41 @@
         </div>
     </div>
 
+    <!-- User Profile Modal -->
+    <div id="userProfileModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div id="userProfileContent">
+                <!-- User profile content will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Profile Modal -->
+    <div id="editProfileModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-edit"></i> Edit Profile</h2>
+                <span class="close" onclick="closeEditProfile()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="editProfileForm">
+                    <div id="editProfileContent">
+                        <!-- Edit form content will be loaded here -->
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-outline" onclick="closeEditProfile()">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Admin Dashboard -->
     <div id="adminDashboard" class="dashboard" style="display: none;">
         <div class="dashboard-header">
@@ -261,12 +296,12 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/config.js"></script>
-    <script src="js/auth.js"></script>
-    <script src="js/elections.js"></script>
-    <script src="js/voting.js"></script>
-    <script src="js/admin.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/main.js"></script>
+    <script src="js/config.js?v=1.2"></script>
+    <script src="js/auth.js?v=1.2"></script>
+    <script src="js/elections.js?v=1.2"></script>
+    <script src="js/voting.js?v=1.2"></script>
+    <script src="js/admin.js?v=1.2"></script>
+    <script src="js/utils.js?v=1.2"></script>
+    <script src="js/main.js?v=1.2"></script>
 </body>
 </html>
