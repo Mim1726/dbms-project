@@ -600,8 +600,257 @@ function closeUserProfile() {
 }
 
 // Edit user profile (placeholder)
-function editUserProfile() {
-    Utils.showToast('Profile editing will be available in a future update', 'info');
+async function editUserProfile() {
+    if (!window.Auth || !window.Auth.isAuthenticated()) {
+        Utils.showToast('Please log in to edit profile', 'warning');
+        return;
+    }
+
+    const editModal = document.getElementById('editProfileModal');
+    const editContent = document.getElementById('editProfileContent');
+    
+    Utils.showLoading();
+    
+    try {
+        const currentUser = window.Auth.getCurrentUser();
+        const userRole = window.Auth.getUserRole();
+        
+        let userData = null;
+        
+        if (userRole === 'admin') {
+            // Get admin details
+            const { data, error } = await supabase
+                .from('admin')
+                .select('*')
+                .eq('admin_id', currentUser.id)
+                .single();
+                
+            if (error) throw error;
+            userData = data;
+        } else if (userRole === 'voter') {
+            // Get voter details
+            const { data, error } = await supabase
+                .from('voter')
+                .select('*')
+                .eq('voter_id', currentUser.id)
+                .single();
+                
+            if (error) throw error;
+            userData = data;
+        }
+        
+        // Generate edit form HTML
+        const editFormHTML = generateEditFormHTML(userData, userRole);
+        editContent.innerHTML = editFormHTML;
+        
+        // Close profile modal and show edit modal
+        closeUserProfile();
+        editModal.style.display = 'block';
+        
+        // Setup form handler
+        setupEditProfileForm(userData, userRole);
+        
+    } catch (error) {
+        console.error('Error loading edit profile:', error);
+        Utils.showToast('Error loading profile for editing', 'error');
+    } finally {
+        Utils.hideLoading();
+    }
+}
+
+// Generate edit form HTML
+function generateEditFormHTML(userData, userRole) {
+    if (userRole === 'admin') {
+        return `
+            <div class="edit-profile-form">
+                <div class="form-section">
+                    <h3><i class="fas fa-user"></i> Personal Information</h3>
+                    <div class="form-group">
+                        <label for="editFullName">Full Name</label>
+                        <input type="text" id="editFullName" value="${Utils.sanitizeHtml(userData.full_name || '')}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editEmail">Email</label>
+                        <input type="email" id="editEmail" value="${Utils.sanitizeHtml(userData.email || '')}" readonly>
+                        <small>Email cannot be changed for security reasons</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="editPhone">Phone Number</label>
+                        <input type="tel" id="editPhone" value="${Utils.sanitizeHtml(userData.phone || '')}" placeholder="Enter phone number">
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <h3><i class="fas fa-lock"></i> Change Password</h3>
+                    <div class="form-group">
+                        <label for="editCurrentPassword">Current Password</label>
+                        <input type="password" id="editCurrentPassword" placeholder="Enter current password">
+                    </div>
+                    <div class="form-group">
+                        <label for="editNewPassword">New Password</label>
+                        <input type="password" id="editNewPassword" placeholder="Enter new password (leave blank to keep current)">
+                    </div>
+                    <div class="form-group">
+                        <label for="editConfirmPassword">Confirm New Password</label>
+                        <input type="password" id="editConfirmPassword" placeholder="Confirm new password">
+                    </div>
+                </div>
+            </div>
+        `;
+    } else {
+        return `
+            <div class="edit-profile-form">
+                <div class="form-section">
+                    <h3><i class="fas fa-user"></i> Personal Information</h3>
+                    <div class="form-group">
+                        <label for="editFullName">Full Name</label>
+                        <input type="text" id="editFullName" value="${Utils.sanitizeHtml(userData.full_name || '')}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editEmail">Email</label>
+                        <input type="email" id="editEmail" value="${Utils.sanitizeHtml(userData.email || '')}" readonly>
+                        <small>Email cannot be changed for security reasons</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="editPhone">Phone Number</label>
+                        <input type="tel" id="editPhone" value="${Utils.sanitizeHtml(userData.phone || '')}" placeholder="Enter phone number">
+                    </div>
+                    <div class="form-group">
+                        <label for="editAddress">Address</label>
+                        <textarea id="editAddress" rows="3" placeholder="Enter your address">${Utils.sanitizeHtml(userData.address || '')}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="editDob">Date of Birth</label>
+                        <input type="date" id="editDob" value="${userData.dob ? userData.dob.split('T')[0] : ''}">
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <h3><i class="fas fa-lock"></i> Change Password</h3>
+                    <div class="form-group">
+                        <label for="editCurrentPassword">Current Password</label>
+                        <input type="password" id="editCurrentPassword" placeholder="Enter current password">
+                    </div>
+                    <div class="form-group">
+                        <label for="editNewPassword">New Password</label>
+                        <input type="password" id="editNewPassword" placeholder="Enter new password (leave blank to keep current)">
+                    </div>
+                    <div class="form-group">
+                        <label for="editConfirmPassword">Confirm New Password</label>
+                        <input type="password" id="editConfirmPassword" placeholder="Confirm new password">
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// Setup edit profile form handler
+function setupEditProfileForm(userData, userRole) {
+    const form = document.getElementById('editProfileForm');
+    
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        Utils.showLoading();
+        
+        try {
+            const formData = new FormData(form);
+            const updates = {};
+            
+            // Get form values
+            const fullName = document.getElementById('editFullName').value.trim();
+            const phone = document.getElementById('editPhone').value.trim();
+            const currentPassword = document.getElementById('editCurrentPassword').value;
+            const newPassword = document.getElementById('editNewPassword').value;
+            const confirmPassword = document.getElementById('editConfirmPassword').value;
+            
+            // Validate required fields
+            if (!fullName) {
+                Utils.showToast('Full name is required', 'error');
+                return;
+            }
+            
+            // Password validation
+            if (newPassword && newPassword !== confirmPassword) {
+                Utils.showToast('New passwords do not match', 'error');
+                return;
+            }
+            
+            if (newPassword && newPassword.length < 6) {
+                Utils.showToast('New password must be at least 6 characters', 'error');
+                return;
+            }
+            
+            // Prepare updates object
+            updates.full_name = fullName;
+            updates.phone = phone;
+            
+            if (userRole === 'voter') {
+                const address = document.getElementById('editAddress').value.trim();
+                const dob = document.getElementById('editDob').value;
+                
+                updates.address = address;
+                if (dob) updates.dob = dob;
+            }
+            
+            // Update profile in database
+            const table = userRole === 'admin' ? 'admin' : 'voter';
+            const idField = userRole === 'admin' ? 'admin_id' : 'voter_id';
+            const userId = window.Auth.getCurrentUser().id;
+            
+            const { error: updateError } = await supabase
+                .from(table)
+                .update(updates)
+                .eq(idField, userId);
+            
+            if (updateError) throw updateError;
+            
+            // Handle password change if requested
+            if (newPassword && currentPassword) {
+                try {
+                    const { error: passwordError } = await supabase.auth.updateUser({
+                        password: newPassword
+                    });
+                    
+                    if (passwordError) {
+                        Utils.showToast('Profile updated but password change failed: ' + passwordError.message, 'warning');
+                    } else {
+                        Utils.showToast('Profile and password updated successfully!', 'success');
+                    }
+                } catch (passError) {
+                    Utils.showToast('Profile updated but password change failed', 'warning');
+                }
+            } else {
+                Utils.showToast('Profile updated successfully!', 'success');
+            }
+            
+            // Close edit modal
+            closeEditProfile();
+            
+            // Refresh profile display if it's open
+            const profileModal = document.getElementById('userProfileModal');
+            if (profileModal.style.display === 'block') {
+                showUserProfile();
+            }
+            
+        } catch (error) {
+            console.error('Error updating profile:', error);
+            Utils.showToast('Failed to update profile: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    });
+}
+
+// Close edit profile modal
+function closeEditProfile() {
+    const modal = document.getElementById('editProfileModal');
+    modal.style.display = 'none';
+    
+    // Clear form
+    const form = document.getElementById('editProfileForm');
+    if (form) form.reset();
 }
 
 // Format date helper
