@@ -671,10 +671,12 @@ class Auth {
                 const { data, error } = await supabase
                     .from('candidate')
                     .insert({
+                        election_id: electionId,
                         full_name: voterInfo.full_name,
                         symbol: '📋', // Default symbol for applications
                         party: 'Independent', // Default party
-                        manifesto: `Bio: ${bio}\n\nManifesto: ${manifesto}`,
+                        bio: bio,
+                        manifesto: manifesto,
                         photo_url: photoUrl
                     });
 
@@ -682,9 +684,6 @@ class Auth {
 
                 Utils.showToast('Candidacy application submitted successfully! Awaiting admin approval.', 'success');
                 form.reset();
-                
-                // Refresh applications tab
-                this.loadUserApplications(voterId);
                 
                 // Switch to applications tab to show the new application
                 showVoterTab('applications');
@@ -795,6 +794,136 @@ function showVoterTab(tabName) {
     if (activeButton) {
         activeButton.classList.add('active');
     }
+    
+    // Load applications when applications tab is selected
+    if (tabName === 'applications') {
+        loadMyApplications();
+    }
+}
+
+// Load voter's candidacy applications
+async function loadMyApplications() {
+    const container = document.getElementById('applicationsContainer');
+    if (!container) return;
+    
+    try {
+        const currentUser = window.Auth?.currentUser;
+        if (!currentUser) {
+            container.innerHTML = '<p>Please log in to view your applications.</p>';
+            return;
+        }
+        
+        container.innerHTML = '<p>Loading applications...</p>';
+        
+        // Get all candidates where this voter's name matches (since there's no voter_id link)
+        const { data: applications, error } = await supabase
+            .from('candidate')
+            .select(`
+                *,
+                election:election_id (
+                    name,
+                    election_date,
+                    election_type
+                )
+            `)
+            .eq('full_name', currentUser.full_name)
+            .order('candidate_id', { ascending: false });
+        
+        if (error) throw error;
+        
+        if (!applications || applications.length === 0) {
+            container.innerHTML = `
+                <div class="no-applications">
+                    <i class="fas fa-file-alt" style="font-size: 48px; color: #a0aec0; margin-bottom: 20px;"></i>
+                    <h4>No Applications Yet</h4>
+                    <p>You haven't applied for candidacy in any elections.</p>
+                    <button class="btn btn-primary" onclick="showVoterTab('candidacy')">
+                        <i class="fas fa-plus"></i> Apply Now
+                    </button>
+                </div>
+            `;
+            return;
+        }
+        
+        // Check approval status by looking up contest table
+        const candidateIds = applications.map(app => app.candidate_id);
+        const { data: contests, error: contestError } = await supabase
+            .from('contest')
+            .select('candidate_id, position')
+            .in('candidate_id', candidateIds);
+        
+        const approvedCandidateIds = new Set(contests?.map(c => c.candidate_id) || []);
+        
+        // Render applications
+        container.innerHTML = `
+            <div class="applications-list">
+                ${applications.map(application => {
+                    const isApproved = approvedCandidateIds.has(application.candidate_id);
+                    const contest = contests?.find(c => c.candidate_id === application.candidate_id);
+                    
+                    return `
+                        <div class="application-card ${isApproved ? 'approved' : 'pending'}">
+                            <div class="application-header">
+                                <h4>${Utils.sanitizeHtml(application.election?.name || 'Unknown Election')}</h4>
+                                <span class="status-badge ${isApproved ? 'status-active' : 'status-warning'}">
+                                    ${isApproved ? 'Approved' : 'Pending Review'}
+                                </span>
+                            </div>
+                            
+                            <div class="application-details">
+                                <p><strong>Election Type:</strong> ${Utils.sanitizeHtml(application.election?.election_type || 'N/A')}</p>
+                                <p><strong>Election Date:</strong> ${Utils.formatDate(application.election?.election_date)}</p>
+                                <p><strong>Application ID:</strong> ${application.candidate_id}</p>
+                                ${isApproved && contest ? `<p><strong>Position:</strong> ${Utils.sanitizeHtml(contest.position)}</p>` : ''}
+                                <p><strong>Party:</strong> ${Utils.sanitizeHtml(application.party || 'Independent')}</p>
+                                <p><strong>Symbol:</strong> ${Utils.sanitizeHtml(application.symbol || 'N/A')}</p>
+                            </div>
+                            
+                            <div class="application-content">
+                                ${application.bio ? `
+                                    <div class="bio-section">
+                                        <h5>Biography</h5>
+                                        <p>${Utils.sanitizeHtml(application.bio)}</p>
+                                    </div>
+                                ` : ''}
+                                
+                                ${application.manifesto ? `
+                                    <div class="manifesto-section">
+                                        <h5>Manifesto</h5>
+                                        <p>${Utils.sanitizeHtml(application.manifesto)}</p>
+                                    </div>
+                                ` : ''}
+                            </div>
+                            
+                            ${isApproved ? `
+                                <div class="approval-message">
+                                    <i class="fas fa-check-circle"></i>
+                                    <strong>Congratulations!</strong> Your candidacy has been approved. Voters can now see you as a candidate for this election.
+                                </div>
+                            ` : `
+                                <div class="pending-message">
+                                    <i class="fas fa-clock"></i>
+                                    Your application is under review by the election administrators.
+                                </div>
+                            `}
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('Error loading applications:', error);
+        container.innerHTML = `
+            <div class="error-message">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>Error loading applications: ${error.message}</p>
+                <button class="btn btn-primary" onclick="loadMyApplications()">
+                    <i class="fas fa-redo"></i> Retry
+                </button>
+            </div>
+        `;
+    }
 }
 
 // Show candidates for a specific election
@@ -826,28 +955,18 @@ async function showCandidatesForElection(electionId) {
         }
         
         console.log('Fetching candidates...');
-        // First try to get all candidates for this election (regardless of approval status)
-        const { data: allCandidates, error: allCandidatesError } = await supabase
-            .from('candidate')
+        // Get candidates who are approved (have entries in contest table)
+        const { data: candidates, error } = await supabase
+            .from('contest')
             .select(`
                 *,
-                voter:voter_id (full_name, email),
+                candidate:candidate_id (
+                    *,
+                    voter:voter_id (full_name, email)
+                ),
                 election:election_id (name)
             `)
             .eq('election_id', electionId);
-
-        console.log('All candidates for election:', { allCandidates, allCandidatesError });
-
-        // Then filter for approved ones
-        const { data: candidates, error } = await supabase
-            .from('candidate')
-            .select(`
-                *,
-                voter:voter_id (full_name, email),
-                election:election_id (name)
-            `)
-            .eq('election_id', electionId)
-            .eq('approval_status', 'approved');
 
         console.log('Approved candidates query result:', { candidates, error });
 
@@ -869,32 +988,37 @@ async function showCandidatesForElection(electionId) {
                 <div class="modal-body">
                     ${candidates && candidates.length > 0 ? `
                         <div class="candidates-grid">
-                            ${candidates.map(candidate => `
-                                <div class="candidate-card">
-                                    ${candidate.photo_url ? `
-                                        <img src="${candidate.photo_url}" alt="Candidate Photo" class="candidate-photo">
-                                    ` : `
-                                        <div class="candidate-photo-placeholder">
-                                            <i class="fas fa-user"></i>
+                            ${candidates.map(contest => {
+                                const candidate = contest.candidate;
+                                return `
+                                    <div class="candidate-card">
+                                        ${candidate.photo_url ? `
+                                            <img src="${candidate.photo_url}" alt="Candidate Photo" class="candidate-photo">
+                                        ` : `
+                                            <div class="candidate-photo-placeholder">
+                                                <i class="fas fa-user"></i>
+                                            </div>
+                                        `}
+                                        <div class="candidate-info">
+                                            <h4>${Utils.sanitizeHtml(candidate.full_name || 'Unknown Candidate')}</h4>
+                                            <p class="candidate-party"><strong>Party:</strong> ${Utils.sanitizeHtml(candidate.party || 'Independent')}</p>
+                                            <p class="candidate-symbol"><strong>Symbol:</strong> ${Utils.sanitizeHtml(candidate.symbol || 'N/A')}</p>
+                                            <p class="candidate-position"><strong>Position:</strong> ${Utils.sanitizeHtml(contest.position || 'Candidate')}</p>
+                                            <div class="candidate-bio">
+                                                <h5>Biography</h5>
+                                                <p>${Utils.sanitizeHtml(candidate.bio || 'No biography provided')}</p>
+                                            </div>
+                                            <div class="candidate-manifesto">
+                                                <h5>Campaign Manifesto</h5>
+                                                <p>${Utils.sanitizeHtml(candidate.manifesto || 'No manifesto provided')}</p>
+                                            </div>
+                                            <button class="btn btn-primary" onclick="selectCandidateForVoting('${candidate.candidate_id}', '${electionId}')">
+                                                Vote for this Candidate
+                                            </button>
                                         </div>
-                                    `}
-                                    <div class="candidate-info">
-                                        <h4>${Utils.sanitizeHtml(candidate.voter?.full_name || 'Unknown Candidate')}</h4>
-                                        <p class="candidate-email">${Utils.sanitizeHtml(candidate.voter?.email || '')}</p>
-                                        <div class="candidate-bio">
-                                            <h5>Biography</h5>
-                                            <p>${Utils.sanitizeHtml(candidate.bio || 'No biography provided')}</p>
-                                        </div>
-                                        <div class="candidate-manifesto">
-                                            <h5>Campaign Manifesto</h5>
-                                            <p>${Utils.sanitizeHtml(candidate.manifesto || 'No manifesto provided')}</p>
-                                        </div>
-                                        <button class="btn btn-primary" onclick="selectCandidateForVoting('${candidate.candidate_id}', '${electionId}')">
-                                            Vote for this Candidate
-                                        </button>
                                     </div>
-                                </div>
-                            `).join('')}
+                                `;
+                            }).join('')}
                         </div>
                     ` : `
                         <p>No approved candidates yet for this election.</p>

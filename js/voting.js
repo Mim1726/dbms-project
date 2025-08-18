@@ -71,22 +71,30 @@ class Voting {
 
             console.log('Fetching candidates...');
 
-            // Get candidates
-            const { data: candidates, error: candidatesError } = await supabase
-                .from(CONFIG.TABLES.CANDIDATES)
-                .select('*')
+            // Get approved candidates through contest table
+            const { data: contestsData, error: candidatesError } = await supabase
+                .from('contest')
+                .select(`
+                    *,
+                    candidate:candidate_id (
+                        *
+                    )
+                `)
                 .eq('election_id', electionId)
-                .order('name');
+                .order('position');
 
             if (candidatesError) {
                 console.error('Candidates fetch error:', candidatesError);
                 throw candidatesError;
             }
 
+            // Extract candidates from contest data
+            const candidates = contestsData?.map(contest => contest.candidate).filter(Boolean) || [];
+
             console.log('Candidates found:', candidates);
 
             if (!candidates || candidates.length === 0) {
-                Utils.showToast('No candidates found for this election', 'warning');
+                Utils.showToast('No approved candidates found for this election', 'warning');
                 return;
             }
 
