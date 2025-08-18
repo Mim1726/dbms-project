@@ -400,10 +400,17 @@ class Auth {
         document.getElementById('adminDashboard').style.display = 'block';
         document.getElementById('voterDashboard').style.display = 'none';
         
-        // Load admin content
-        if (window.Admin) {
-            window.Admin.loadDashboard();
+        // Ensure Admin is initialized and load dashboard
+        if (!window.Admin) {
+            window.Admin = new Admin();
         }
+        
+        // Load admin content with a small delay to ensure DOM is ready
+        setTimeout(() => {
+            if (window.Admin) {
+                window.Admin.loadDashboard();
+            }
+        }, 100);
     }
 
     // Show voter dashboard
