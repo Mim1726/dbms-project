@@ -467,6 +467,7 @@ class Auth {
                     <button class="tab-btn active" onclick="showVoterTab('elections')">Active Elections</button>
                     <button class="tab-btn" onclick="showVoterTab('candidacy')">Apply for Candidacy</button>
                     <button class="tab-btn" onclick="showVoterTab('applications')">My Applications</button>
+                    <button class="tab-btn" onclick="testDatabaseConnection()" style="background-color: #28a745; color: white;">Test DB</button>
                 </div>
 
                 <div id="voterTabContent">
@@ -496,7 +497,7 @@ class Auth {
                             <form id="candidacyApplicationForm">
                                 <div class="form-group">
                                     <label for="electionSelect">Select Election</label>
-                                    <select id="electionSelect" required>
+                                    <select id="electionSelect" name="electionSelect" required>
                                         <option value="">Choose an election...</option>
                                         ${elections.map(election => `
                                             <option value="${election.election_id}">${Utils.sanitizeHtml(election.name)}</option>
@@ -505,15 +506,15 @@ class Auth {
                                 </div>
                                 <div class="form-group">
                                     <label for="candidateBio">Biography</label>
-                                    <textarea id="candidateBio" rows="4" required placeholder="Tell voters about yourself, your qualifications, and your vision..."></textarea>
+                                    <textarea id="candidateBio" name="candidateBio" rows="4" required placeholder="Tell voters about yourself, your qualifications, and your vision..."></textarea>
                                 </div>
                                 <div class="form-group">
                                     <label for="candidateManifesto">Campaign Manifesto</label>
-                                    <textarea id="candidateManifesto" rows="6" required placeholder="Describe your campaign promises and goals..."></textarea>
+                                    <textarea id="candidateManifesto" name="candidateManifesto" rows="6" required placeholder="Describe your campaign promises and goals..."></textarea>
                                 </div>
                                 <div class="form-group">
                                     <label for="candidatePhoto">Profile Photo (Optional)</label>
-                                    <input type="file" id="candidatePhoto" accept="image/*">
+                                    <input type="file" id="candidatePhoto" name="candidatePhoto" accept="image/*">
                                     <small>Recommended: Square image, max 2MB</small>
                                 </div>
                                 <button type="submit" class="btn btn-primary">Submit Application</button>
@@ -583,13 +584,32 @@ class Auth {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             
+            console.log('Candidacy form submitted');
+            
             const formData = new FormData(form);
             const electionId = formData.get('electionSelect');
             const bio = formData.get('candidateBio');
             const manifesto = formData.get('candidateManifesto');
             const photo = formData.get('candidatePhoto');
 
+            console.log('Form data:', { electionId, bio, manifesto, photo });
+
+            // Validate required fields
+            if (!electionId) {
+                Utils.showToast('Please select an election', 'error');
+                return;
+            }
+            if (!bio) {
+                Utils.showToast('Please enter your biography', 'error');
+                return;
+            }
+            if (!manifesto) {
+                Utils.showToast('Please enter your campaign manifesto', 'error');
+                return;
+            }
+
             try {
+                Utils.showLoading();
                 // Check if user already applied for this election
                 const { data: existingApplication } = await supabase
                     .from('candidate')
@@ -599,7 +619,7 @@ class Auth {
                     .single();
 
                 if (existingApplication) {
-                    Utils.showMessage('You have already applied for this election', 'error');
+                    Utils.showToast('You have already applied for this election', 'error');
                     return;
                 }
 
@@ -615,7 +635,7 @@ class Auth {
 
                     if (uploadError) {
                         console.error('Photo upload error:', uploadError);
-                        Utils.showMessage('Photo upload failed, but application will continue', 'warning');
+                        Utils.showToast('Photo upload failed, but application will continue', 'warning');
                     } else {
                         const { data: urlData } = supabase.storage
                             .from('candidate-photos')
@@ -639,7 +659,7 @@ class Auth {
 
                 if (error) throw error;
 
-                Utils.showMessage('Candidacy application submitted successfully! Awaiting admin approval.', 'success');
+                Utils.showToast('Candidacy application submitted successfully! Awaiting admin approval.', 'success');
                 form.reset();
                 
                 // Refresh applications tab
@@ -650,7 +670,9 @@ class Auth {
 
             } catch (error) {
                 console.error('Error submitting candidacy application:', error);
-                Utils.showMessage('Failed to submit application. Please try again.', 'error');
+                Utils.showToast('Failed to submit application. Please try again.', 'error');
+            } finally {
+                Utils.hideLoading();
             }
         });
     }
@@ -710,6 +732,28 @@ class Auth {
     }
 }
 
+// Test database connectivity
+async function testDatabaseConnection() {
+    console.log('Testing database connection...');
+    try {
+        const { data, error } = await supabase
+            .from('election')
+            .select('*')
+            .limit(5);
+        
+        console.log('Database test result:', { data, error });
+        
+        if (error) {
+            Utils.showToast('Database connection error: ' + error.message, 'error');
+        } else {
+            Utils.showToast(`Database connected successfully. Found ${data.length} elections.`, 'success');
+        }
+    } catch (error) {
+        console.error('Database connection test failed:', error);
+        Utils.showToast('Database connection test failed', 'error');
+    }
+}
+
 // Voter dashboard tab switching
 function showVoterTab(tabName) {
     // Hide all tabs
@@ -735,7 +779,46 @@ function showVoterTab(tabName) {
 
 // Show candidates for a specific election
 async function showCandidatesForElection(electionId) {
+    console.log('showCandidatesForElection called with electionId:', electionId);
+    
     try {
+        // Add loading indicator
+        Utils.showLoading();
+        
+        // First, let's check if the election exists
+        console.log('Checking if election exists...');
+        const { data: electionCheck, error: electionCheckError } = await supabase
+            .from('election')
+            .select('*')
+            .eq('election_id', electionId);
+        
+        console.log('Election check result:', { electionCheck, electionCheckError });
+        
+        if (electionCheckError) {
+            console.error('Election check error:', electionCheckError);
+            Utils.showToast('Error checking election: ' + electionCheckError.message, 'error');
+            return;
+        }
+        
+        if (!electionCheck || electionCheck.length === 0) {
+            Utils.showToast('Election not found', 'error');
+            return;
+        }
+        
+        console.log('Fetching candidates...');
+        // First try to get all candidates for this election (regardless of approval status)
+        const { data: allCandidates, error: allCandidatesError } = await supabase
+            .from('candidate')
+            .select(`
+                *,
+                voter:voter_id (full_name, email),
+                election:election_id (name)
+            `)
+            .eq('election_id', electionId);
+
+        console.log('All candidates for election:', { allCandidates, allCandidatesError });
+
+        // Then filter for approved ones
         const { data: candidates, error } = await supabase
             .from('candidate')
             .select(`
@@ -746,15 +829,13 @@ async function showCandidatesForElection(electionId) {
             .eq('election_id', electionId)
             .eq('approval_status', 'approved');
 
+        console.log('Approved candidates query result:', { candidates, error });
+
         if (error) throw error;
 
-        const { data: election, error: electionError } = await supabase
-            .from('election')
-            .select('*')
-            .eq('election_id', electionId)
-            .single();
-
-        if (electionError) throw electionError;
+        console.log('Fetching election details...');
+        const election = electionCheck[0]; // Use the election we already fetched
+        console.log('Using election:', election);
 
         // Create modal for candidates
         const modal = document.createElement('div');
@@ -795,17 +876,26 @@ async function showCandidatesForElection(electionId) {
                                 </div>
                             `).join('')}
                         </div>
-                    ` : '<p>No approved candidates yet for this election.</p>'}
+                    ` : `
+                        <p>No approved candidates yet for this election.</p>
+                        ${allCandidates && allCandidates.length > 0 ? `
+                            <p><em>Note: There are ${allCandidates.length} candidate application(s) pending approval.</em></p>
+                        ` : ''}
+                    `}
                 </div>
             </div>
         `;
 
         document.body.appendChild(modal);
         modal.style.display = 'block';
+        
+        console.log('Modal created and displayed');
 
     } catch (error) {
         console.error('Error loading candidates:', error);
-        Utils.showMessage('Failed to load candidates. Please try again.', 'error');
+        Utils.showToast('Failed to load candidates. Please try again.', 'error');
+    } finally {
+        Utils.hideLoading();
     }
 }
 
@@ -835,7 +925,7 @@ async function withdrawApplication(candidateId) {
 
         if (error) throw error;
 
-        Utils.showMessage('Application withdrawn successfully', 'success');
+        Utils.showToast('Application withdrawn successfully', 'success');
         
         // Refresh applications
         const voter = window.Auth.getCurrentUser();
@@ -853,7 +943,7 @@ async function withdrawApplication(candidateId) {
 
     } catch (error) {
         console.error('Error withdrawing application:', error);
-        Utils.showMessage('Failed to withdraw application. Please try again.', 'error');
+        Utils.showToast('Failed to withdraw application. Please try again.', 'error');
     }
 }
 
