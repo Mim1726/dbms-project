@@ -610,16 +610,27 @@ class Auth {
 
             try {
                 Utils.showLoading();
-                // Check if user already applied for this election
+                // Get voter information to get full name
+                const { data: voterInfo, error: voterError } = await supabase
+                    .from('voter')
+                    .select('full_name')
+                    .eq('voter_id', voterId)
+                    .single();
+
+                if (voterError) {
+                    console.error('Error fetching voter info:', voterError);
+                    throw new Error('Could not fetch voter information');
+                }
+
+                // Check if user already applied (by checking if candidate with same name exists)
                 const { data: existingApplication } = await supabase
                     .from('candidate')
                     .select('*')
-                    .eq('voter_id', voterId)
-                    .eq('election_id', electionId)
+                    .eq('full_name', voterInfo.full_name)
                     .single();
 
                 if (existingApplication) {
-                    Utils.showToast('You have already applied for this election', 'error');
+                    Utils.showToast('You have already applied as a candidate', 'error');
                     return;
                 }
 
@@ -644,17 +655,20 @@ class Auth {
                     }
                 }
 
-                // Submit candidacy application
+                if (voterError) {
+                    console.error('Error fetching voter info:', voterError);
+                    throw new Error('Could not fetch voter information');
+                }
+
+                // Submit candidacy application (adapted to current schema)
                 const { data, error } = await supabase
                     .from('candidate')
                     .insert({
-                        voter_id: voterId,
-                        election_id: electionId,
-                        bio: bio,
-                        manifesto: manifesto,
-                        photo_url: photoUrl,
-                        approval_status: 'pending',
-                        application_date: new Date().toISOString()
+                        full_name: voterInfo.full_name,
+                        symbol: '📋', // Default symbol for applications
+                        party: 'Independent', // Default party
+                        manifesto: `Bio: ${bio}\n\nManifesto: ${manifesto}`,
+                        photo_url: photoUrl
                     });
 
                 if (error) throw error;
@@ -680,18 +694,20 @@ class Auth {
     // Load user's candidacy applications
     async loadUserApplications(voterId) {
         try {
+            // Get voter info first
+            const { data: voterInfo, error: voterError } = await supabase
+                .from('voter')
+                .select('full_name')
+                .eq('voter_id', voterId)
+                .single();
+
+            if (voterError) throw voterError;
+
+            // Get applications by matching full name (since current schema doesn't have voter_id)
             const { data: applications, error } = await supabase
                 .from('candidate')
-                .select(`
-                    *,
-                    election:election_id (
-                        name,
-                        election_date,
-                        election_type
-                    )
-                `)
-                .eq('voter_id', voterId)
-                .order('application_date', { ascending: false });
+                .select('*')
+                .eq('full_name', voterInfo.full_name);
 
             if (error) throw error;
 
@@ -702,21 +718,18 @@ class Auth {
                 container.innerHTML = applications.map(app => `
                     <div class="application-card">
                         <div class="application-header">
-                            <h4>${Utils.sanitizeHtml(app.election?.name || 'Unknown Election')}</h4>
-                            <span class="status-badge status-${app.approval_status}">${app.approval_status.toUpperCase()}</span>
+                            <h4>${Utils.sanitizeHtml(app.full_name)}</h4>
+                            <span class="status-badge status-pending">SUBMITTED</span>
                         </div>
                         <div class="application-details">
-                            <p><strong>Election Date:</strong> ${Utils.formatDate(app.election?.election_date)}</p>
-                            <p><strong>Applied:</strong> ${Utils.formatDate(app.application_date)}</p>
-                            <p><strong>Bio:</strong> ${Utils.sanitizeHtml(app.bio)}</p>
-                            <p><strong>Manifesto:</strong> ${Utils.sanitizeHtml(app.manifesto)}</p>
+                            <p><strong>Party:</strong> ${Utils.sanitizeHtml(app.party || 'Independent')}</p>
+                            <p><strong>Symbol:</strong> ${Utils.sanitizeHtml(app.symbol || 'N/A')}</p>
+                            <p><strong>Manifesto:</strong> ${Utils.sanitizeHtml(app.manifesto || 'No manifesto provided')}</p>
                             ${app.photo_url ? `<img src="${app.photo_url}" alt="Candidate Photo" class="candidate-photo-small">` : ''}
                         </div>
-                        ${app.approval_status === 'pending' ? `
-                            <button class="btn btn-outline" onclick="withdrawApplication('${app.candidate_id}')">
-                                Withdraw Application
-                            </button>
-                        ` : ''}
+                        <button class="btn btn-outline" onclick="withdrawApplication('${app.candidate_id}')">
+                            Withdraw Application
+                        </button>
                     </div>
                 `).join('');
             } else {

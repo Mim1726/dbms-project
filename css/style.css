@@ -1495,3 +1495,178 @@ main {
     padding: 6px 12px;
     font-size: 12px;
 }
+
+/* Candidate application cards for admin panel */
+.candidate-application-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.3s ease;
+}
+
+.candidate-application-card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.candidate-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+}
+
+.candidate-info {
+    display: flex;
+    gap: 15px;
+    align-items: flex-start;
+}
+
+.candidate-photo {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #e2e8f0;
+}
+
+.candidate-photo-placeholder {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: #f7fafc;
+    border: 2px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #a0aec0;
+    font-size: 24px;
+}
+
+.candidate-details h4 {
+    margin: 0 0 5px 0;
+    color: #2d3748;
+    font-size: 18px;
+}
+
+.candidate-party {
+    color: #4a5568;
+    margin: 0 0 5px 0;
+    font-size: 14px;
+}
+
+.candidate-symbol {
+    color: #718096;
+    margin: 0;
+    font-size: 12px;
+}
+
+.candidate-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.candidate-manifesto {
+    background: #f7fafc;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.candidate-manifesto h5 {
+    margin: 0 0 10px 0;
+    color: #2d3748;
+    font-size: 16px;
+}
+
+.manifesto-content {
+    color: #4a5568;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+.candidate-meta {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 15px;
+    margin-top: 15px;
+}
+
+.candidate-meta small {
+    color: #a0aec0;
+    font-size: 12px;
+}
+
+.no-candidates {
+    text-align: center;
+    padding: 60px 20px;
+    color: #718096;
+}
+
+.no-candidates i {
+    display: block;
+    margin: 0 auto 20px;
+}
+
+.no-candidates h4 {
+    margin: 0 0 10px 0;
+    color: #4a5568;
+}
+
+.error-message {
+    text-align: center;
+    padding: 40px 20px;
+    color: #e53e3e;
+}
+
+.error-message i {
+    font-size: 48px;
+    margin-bottom: 20px;
+    display: block;
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 6px;
+}
+
+/* Edit candidate modal */
+.edit-candidate-modal {
+    max-width: 600px;
+}
+
+.edit-candidate-modal .form-group {
+    margin-bottom: 20px;
+}
+
+.edit-candidate-modal label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.edit-candidate-modal input,
+.edit-candidate-modal textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color 0.3s ease;
+}
+
+.edit-candidate-modal input:focus,
+.edit-candidate-modal textarea:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.edit-candidate-modal textarea {
+    resize: vertical;
+    min-height: 120px;
+}

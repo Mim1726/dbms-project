@@ -524,13 +524,97 @@ class Admin {
 
     // Load candidates tab
     async loadCandidatesTab(container) {
-        // Implementation for candidates management
-        container.innerHTML = `
-            <div class="admin-section">
-                <h3>Candidates Management</h3>
-                <p>Candidates management functionality will be implemented here.</p>
-            </div>
-        `;
+        try {
+            Utils.showLoading();
+            
+            // Get all candidates/applications
+            const { data: candidates, error } = await supabase
+                .from('candidate')
+                .select('*')
+                .order('candidate_id', { ascending: false });
+
+            if (error) throw error;
+
+            container.innerHTML = `
+                <div class="admin-section">
+                    <div class="section-header">
+                        <h3>Candidacy Applications</h3>
+                        <p>Review and manage candidate applications</p>
+                    </div>
+                    
+                    <div class="candidates-list">
+                        ${candidates && candidates.length > 0 ? candidates.map(candidate => `
+                            <div class="candidate-application-card">
+                                <div class="candidate-header">
+                                    <div class="candidate-info">
+                                        ${candidate.photo_url ? `
+                                            <img src="${candidate.photo_url}" alt="Candidate Photo" class="candidate-photo">
+                                        ` : `
+                                            <div class="candidate-photo-placeholder">
+                                                <i class="fas fa-user"></i>
+                                            </div>
+                                        `}
+                                        <div class="candidate-details">
+                                            <h4>${Utils.sanitizeHtml(candidate.full_name)}</h4>
+                                            <p class="candidate-party">${Utils.sanitizeHtml(candidate.party || 'Independent')}</p>
+                                            <p class="candidate-symbol">Symbol: ${Utils.sanitizeHtml(candidate.symbol || 'N/A')}</p>
+                                        </div>
+                                    </div>
+                                    <div class="candidate-actions">
+                                        <button class="btn btn-success btn-sm" onclick="window.Admin.approveCandidate('${candidate.candidate_id}')">
+                                            <i class="fas fa-check"></i> Approve
+                                        </button>
+                                        <button class="btn btn-danger btn-sm" onclick="window.Admin.rejectCandidate('${candidate.candidate_id}')">
+                                            <i class="fas fa-times"></i> Reject
+                                        </button>
+                                        <button class="btn btn-outline btn-sm" onclick="window.Admin.editCandidate('${candidate.candidate_id}')">
+                                            <i class="fas fa-edit"></i> Edit
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="candidate-manifesto">
+                                    <h5>Manifesto & Biography</h5>
+                                    <div class="manifesto-content">
+                                        ${Utils.sanitizeHtml(candidate.manifesto || 'No manifesto provided')}
+                                    </div>
+                                </div>
+                                
+                                <div class="candidate-meta">
+                                    <small class="text-muted">
+                                        Application ID: ${candidate.candidate_id} | 
+                                        Submitted: ${candidate.created_at ? Utils.formatDate(candidate.created_at) : 'Unknown'}
+                                    </small>
+                                </div>
+                            </div>
+                        `).join('') : `
+                            <div class="no-candidates">
+                                <i class="fas fa-users" style="font-size: 48px; color: #a0aec0; margin-bottom: 20px;"></i>
+                                <h4>No Candidate Applications</h4>
+                                <p>There are no candidacy applications to review at this time.</p>
+                            </div>
+                        `}
+                    </div>
+                </div>
+            `;
+            
+        } catch (error) {
+            console.error('Error loading candidates:', error);
+            container.innerHTML = `
+                <div class="admin-section">
+                    <h3>Candidates Management</h3>
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Error loading candidates: ${error.message}</p>
+                        <button class="btn btn-primary" onclick="window.Admin.loadCandidatesTab(this.closest('.admin-section').parentElement)">
+                            <i class="fas fa-redo"></i> Retry
+                        </button>
+                    </div>
+                </div>
+            `;
+        } finally {
+            Utils.hideLoading();
+        }
     }
 
     // Load voters tab
@@ -559,6 +643,204 @@ class Admin {
     manageElectionCandidates(electionId) {
         // Implementation for managing candidates of a specific election
         Utils.showToast('Candidate management coming soon!', 'info');
+    }
+
+    // Approve candidate application
+    async approveCandidate(candidateId) {
+        if (!confirm('Are you sure you want to approve this candidate application?')) {
+            return;
+        }
+
+        try {
+            Utils.showLoading();
+            
+            // For current schema, we'll update a field to mark as approved
+            // Since the current schema doesn't have approval_status, we'll use the party field
+            // to add an "APPROVED" marker
+            const { data: candidate, error: fetchError } = await supabase
+                .from('candidate')
+                .select('*')
+                .eq('candidate_id', candidateId)
+                .single();
+
+            if (fetchError) throw fetchError;
+
+            const updatedParty = candidate.party?.includes('APPROVED') ? 
+                candidate.party : 
+                `${candidate.party || 'Independent'} - APPROVED`;
+
+            const { error } = await supabase
+                .from('candidate')
+                .update({ 
+                    party: updatedParty,
+                    symbol: candidate.symbol === '📋' ? '✅' : candidate.symbol
+                })
+                .eq('candidate_id', candidateId);
+
+            if (error) throw error;
+
+            Utils.showToast('Candidate approved successfully!', 'success');
+            
+            // Refresh the candidates tab
+            const container = document.querySelector('.admin-content');
+            if (container) {
+                this.loadCandidatesTab(container);
+            }
+            
+        } catch (error) {
+            console.error('Error approving candidate:', error);
+            Utils.showToast('Failed to approve candidate: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    }
+
+    // Reject candidate application
+    async rejectCandidate(candidateId) {
+        if (!confirm('Are you sure you want to reject this candidate application? This will delete the application.')) {
+            return;
+        }
+
+        try {
+            Utils.showLoading();
+            
+            const { error } = await supabase
+                .from('candidate')
+                .delete()
+                .eq('candidate_id', candidateId);
+
+            if (error) throw error;
+
+            Utils.showToast('Candidate application rejected and removed.', 'success');
+            
+            // Refresh the candidates tab
+            const container = document.querySelector('.admin-content');
+            if (container) {
+                this.loadCandidatesTab(container);
+            }
+            
+        } catch (error) {
+            console.error('Error rejecting candidate:', error);
+            Utils.showToast('Failed to reject candidate: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    }
+
+    // Edit candidate
+    async editCandidate(candidateId) {
+        try {
+            // Get candidate data
+            const { data: candidate, error } = await supabase
+                .from('candidate')
+                .select('*')
+                .eq('candidate_id', candidateId)
+                .single();
+
+            if (error) throw error;
+
+            // Show edit modal
+            this.showEditCandidateModal(candidate);
+            
+        } catch (error) {
+            console.error('Error loading candidate for edit:', error);
+            Utils.showToast('Failed to load candidate data', 'error');
+        }
+    }
+
+    // Show edit candidate modal
+    showEditCandidateModal(candidate) {
+        const modal = document.getElementById('votingModal');
+        const content = document.getElementById('votingContent');
+
+        content.innerHTML = `
+            <div class="edit-candidate-modal">
+                <h2>Edit Candidate</h2>
+                
+                <form id="editCandidateForm">
+                    <div class="form-group">
+                        <label for="editCandidateName">Full Name</label>
+                        <input type="text" id="editCandidateName" value="${Utils.sanitizeHtml(candidate.full_name)}" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editCandidateParty">Party</label>
+                        <input type="text" id="editCandidateParty" value="${Utils.sanitizeHtml(candidate.party || '')}" placeholder="Independent">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editCandidateSymbol">Symbol</label>
+                        <input type="text" id="editCandidateSymbol" value="${Utils.sanitizeHtml(candidate.symbol || '')}" placeholder="📋">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editCandidateManifesto">Manifesto & Biography</label>
+                        <textarea id="editCandidateManifesto" rows="6" required>${Utils.sanitizeHtml(candidate.manifesto || '')}</textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editCandidatePhoto">Photo URL</label>
+                        <input type="url" id="editCandidatePhoto" value="${Utils.sanitizeHtml(candidate.photo_url || '')}" placeholder="https://...">
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button type="button" class="btn btn-outline" onclick="document.getElementById('votingModal').style.display = 'none'">
+                            Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        // Setup form handler
+        const form = document.getElementById('editCandidateForm');
+        form.addEventListener('submit', (e) => this.handleEditCandidate(e, candidate.candidate_id));
+
+        modal.style.display = 'block';
+    }
+
+    // Handle edit candidate form submission
+    async handleEditCandidate(event, candidateId) {
+        event.preventDefault();
+        
+        const formData = new FormData(event.target);
+        const updates = {
+            full_name: document.getElementById('editCandidateName').value,
+            party: document.getElementById('editCandidateParty').value || 'Independent',
+            symbol: document.getElementById('editCandidateSymbol').value || '📋',
+            manifesto: document.getElementById('editCandidateManifesto').value,
+            photo_url: document.getElementById('editCandidatePhoto').value || null
+        };
+
+        try {
+            Utils.showLoading();
+            
+            const { error } = await supabase
+                .from('candidate')
+                .update(updates)
+                .eq('candidate_id', candidateId);
+
+            if (error) throw error;
+
+            Utils.showToast('Candidate updated successfully!', 'success');
+            
+            // Close modal and refresh
+            document.getElementById('votingModal').style.display = 'none';
+            
+            const container = document.querySelector('.admin-content');
+            if (container) {
+                this.loadCandidatesTab(container);
+            }
+            
+        } catch (error) {
+            console.error('Error updating candidate:', error);
+            Utils.showToast('Failed to update candidate: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
     }
 
     // View election results (admin view)
