@@ -184,11 +184,23 @@ class App {
     // Load results section
     async loadResultsSection() {
         const resultsContainer = document.getElementById('resultsContainer');
-        
         Utils.showLoading();
-        
         try {
-            // Get all elections with results
+            // Check if user is logged in
+            const isLoggedIn = window.Auth && window.Auth.isAuthenticated && window.Auth.isAuthenticated();
+            if (!isLoggedIn) {
+                resultsContainer.innerHTML = `
+                    <div class="login-required">
+                        <i class="fas fa-lock" style="font-size: 64px; color: #7c5fe6; margin-bottom: 20px;"></i>
+                        <h3>Login Required</h3>
+                        <p>You must be logged in to view election results.<br>
+                        <button class="btn btn-primary" onclick="showSection('home'); document.getElementById('loginBtn').click();">Login</button></p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Get all completed elections
             const { data: elections, error } = await supabase
                 .from(CONFIG.TABLES.ELECTIONS)
                 .select(`
@@ -202,18 +214,21 @@ class App {
 
             if (error) throw error;
 
-            if (!elections || elections.length === 0) {
+            // Filter only completed elections
+            const completedElections = (elections || []).filter(election => this.getElectionStatus(election) === 'Ended');
+
+            if (!completedElections || completedElections.length === 0) {
                 resultsContainer.innerHTML = `
                     <div class="no-results">
                         <i class="fas fa-chart-bar" style="font-size: 64px; color: #a0aec0; margin-bottom: 20px;"></i>
-                        <h3>No Election Results</h3>
-                        <p>There are no election results available yet.</p>
+                        <h3>No Completed Elections</h3>
+                        <p>There are no completed elections available yet.</p>
                     </div>
                 `;
                 return;
             }
 
-            resultsContainer.innerHTML = elections.map(election => {
+            resultsContainer.innerHTML = completedElections.map(election => {
                 const candidates = election.candidates || [];
                 const totalVotes = candidates.reduce((sum, candidate) => {
                     return sum + (candidate.votes?.[0]?.count || 0);
@@ -226,14 +241,12 @@ class App {
                     return bVotes - aVotes;
                 });
 
-                const status = this.getElectionStatus(election);
-
                 return `
                     <div class="results-container">
                         <div class="results-header">
                             <h3>${Utils.sanitizeHtml(election.title)}</h3>
                             <div class="results-meta">
-                                <span class="election-status status-${status.toLowerCase()}">${status}</span>
+                                <span class="election-status status-ended">Ended</span>
                                 <span class="total-votes">${totalVotes} votes cast</span>
                             </div>
                         </div>
