@@ -492,7 +492,21 @@ class Auth {
         document.getElementById('mainContent').style.display = 'none';
         document.getElementById('adminDashboard').style.display = 'none';
         document.getElementById('voterDashboard').style.display = 'block';
-        
+
+        // Add View Results button if not present
+        let voterHeader = document.querySelector('#voterDashboard .dashboard-header');
+        if (voterHeader && !document.getElementById('viewResultsBtn')) {
+            const btn = document.createElement('button');
+            btn.id = 'viewResultsBtn';
+            btn.className = 'btn btn-primary';
+            btn.innerHTML = '<i class="fas fa-chart-bar"></i> View Results';
+            btn.style.marginLeft = '1rem';
+            btn.onclick = function() {
+                if (window.App) window.App.showSection('results');
+            };
+            voterHeader.appendChild(btn);
+        }
+
         // Load voter content
         this.loadVoterDashboard();
     }
