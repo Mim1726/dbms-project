@@ -236,9 +236,11 @@ class Auth {
         const confirmPassword = document.getElementById('registerConfirmPassword').value;
         const fullName = document.getElementById('registerName').value;
         const phone = document.getElementById('registerPhone').value;
+        const dob = document.getElementById('registerDob').value;
+        const nid = document.getElementById('registerNid').value;
 
         // Validation
-        if (!email || !password || !confirmPassword || !fullName || !phone) {
+        if (!email || !password || !confirmPassword || !fullName || !phone || !dob || !nid) {
             Utils.showToast('Please fill in all fields', 'error');
             return;
         }
@@ -270,7 +272,8 @@ class Auth {
                     email: email,
                     password: password, // Note: In production, hash this password!
                     phone: phone,
-                    dob: '1990-01-01', // Default DOB - you might want to add this to the form
+                    dob: dob,
+                    nid_number: nid,
                     address: 'Not provided', // Default address - you might want to add this to the form
                     is_verified: 'N',
                     role: 'voter'

@@ -568,6 +568,16 @@ function generateProfileHTML(profileData, userRole) {
                     </div>
                     ${userRole === 'voter' ? `
                         <div class="profile-field">
+                            <span class="profile-field-label">Date of Birth</span>
+                            <span class="profile-field-value">${profileData.dob ? profileData.dob : 'N/A'}</span>
+                        </div>
+                        <div class="profile-field">
+                            <span class="profile-field-label">NID Number</span>
+                            <span class="profile-field-value">${profileData.nid_number || 'N/A'}</span>
+                        </div>
+                    ` : ''}
+                    ${userRole === 'voter' ? `
+                        <div class="profile-field">
                             <span class="profile-field-label">Address</span>
                             <span class="profile-field-value">${Utils.sanitizeHtml(profileData.address)}</span>
                         </div>
@@ -752,6 +762,10 @@ function generateEditFormHTML(userData, userRole) {
                         <label for="editDob">Date of Birth</label>
                         <input type="date" id="editDob" value="${userData.dob ? userData.dob.split('T')[0] : ''}">
                     </div>
+                    <div class="form-group">
+                        <label for="editNid">NID Number</label>
+                        <input type="text" id="editNid" value="${Utils.sanitizeHtml(userData.nid_number || '')}" placeholder="Enter your NID number">
+                    </div>
                 </div>
                 
                 <div class="form-section">
@@ -818,9 +832,10 @@ function setupEditProfileForm(userData, userRole) {
             if (userRole === 'voter') {
                 const address = document.getElementById('editAddress').value.trim();
                 const dob = document.getElementById('editDob').value;
-                
+                const nid = document.getElementById('editNid').value.trim();
                 updates.address = address;
                 if (dob) updates.dob = dob;
+                if (nid) updates.nid_number = nid;
             }
             
             // Update profile in database
