@@ -146,8 +146,14 @@ class App {
                 detail: { section: sectionName }
             }));
 
-            // Load section-specific content
-            this.loadSectionContent(sectionName);
+            // Only load dashboard for Elections section
+            if (sectionName === 'elections') {
+                this.loadSectionContent(sectionName);
+            } else if (sectionName === 'results') {
+                this.loadSectionContent(sectionName);
+            }
+            // For home and about, do NOT load voter/admin dashboard
+            // They remain static as before login
         }
     }
 
@@ -163,13 +169,22 @@ class App {
 
     // Load section-specific content
     loadSectionContent(sectionName) {
+        const isLoggedIn = window.Auth && window.Auth.isAuthenticated && window.Auth.isAuthenticated();
         switch (sectionName) {
             case 'elections':
-                if (window.Elections) {
+                if (isLoggedIn && window.Auth && window.Auth.hasRole('voter')) {
+                    // Show voter dashboard for logged-in voters
+                    window.Auth.showVoterDashboard();
+                } else if (isLoggedIn && window.Auth && window.Auth.hasRole('admin')) {
+                    // Show admin dashboard for logged-in admins
+                    window.Auth.showAdminDashboard();
+                } else if (window.Elections) {
+                    // Not logged in, show public elections
                     window.Elections.loadElections();
                 }
                 break;
             case 'results':
+                // Always show ended elections results (already handled in loadResultsSection)
                 this.loadResultsSection();
                 break;
             case 'about':

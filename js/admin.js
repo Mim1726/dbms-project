@@ -1116,7 +1116,6 @@ class Admin {
     async loadVotersTab(container) {
         try {
             Utils.showLoading();
-            
             // Get all voters
             const { data: voters, error } = await supabase
                 .from('voter')
@@ -1125,15 +1124,19 @@ class Admin {
 
             if (error) throw error;
 
+            // Split voters into verified and pending
+            const verifiedVoters = voters.filter(v => v.is_verified === 'Y');
+            const pendingVoters = voters.filter(v => v.is_verified !== 'Y');
+
             container.innerHTML = `
                 <div class="admin-section">
                     <div class="section-header">
                         <h3>Voters Management</h3>
                         <p>Manage and verify voter registrations</p>
                     </div>
-                    
                     <div class="admin-table-container">
-                        ${voters && voters.length > 0 ? `
+                        <h4 style="margin-top:1.5rem;">Pending Voters (${pendingVoters.length})</h4>
+                        ${pendingVoters.length > 0 ? `
                             <table class="data-table">
                                 <thead>
                                     <tr>
@@ -1141,49 +1144,99 @@ class Admin {
                                         <th>Name</th>
                                         <th>Email</th>
                                         <th>Phone</th>
-                                        <th>Verified</th>
-                                        <th>Registration Date</th>
+                                        <th>Date of Birth</th>
+                                        <th>NID Number</th>
+                                        <th>Age</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${voters.map(voter => `
-                                        <tr>
-                                            <td>${voter.voter_id}</td>
-                                            <td>${Utils.sanitizeHtml(voter.full_name)}</td>
-                                            <td>${Utils.sanitizeHtml(voter.email)}</td>
-                                            <td>${Utils.sanitizeHtml(voter.phone || 'N/A')}</td>
-                                            <td>
-                                                <span class="status-badge status-${voter.is_verified === 'Y' ? 'active' : 'inactive'}">
-                                                    ${voter.is_verified === 'Y' ? 'Verified' : 'Pending'}
-                                                </span>
-                                            </td>
-                                            <td>${Utils.formatDate(voter.registration_date)}</td>
-                                            <td class="action-buttons">
-                                                ${voter.is_verified !== 'Y' ? `
+                                    ${pendingVoters.map(voter => {
+                                        // Calculate age
+                                        let age = '';
+                                        if (voter.dob) {
+                                            const dob = new Date(voter.dob);
+                                            const today = new Date();
+                                            age = today.getFullYear() - dob.getFullYear();
+                                            const m = today.getMonth() - dob.getMonth();
+                                            if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+                                                age--;
+                                            }
+                                        }
+                                        return `
+                                            <tr>
+                                                <td>${voter.voter_id}</td>
+                                                <td>${Utils.sanitizeHtml(voter.full_name)}</td>
+                                                <td>${Utils.sanitizeHtml(voter.email)}</td>
+                                                <td>${Utils.sanitizeHtml(voter.phone || 'N/A')}</td>
+                                                <td>${voter.dob ? new Date(voter.dob).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</td>
+                                                <td>${voter.nid_number || 'N/A'}</td>
+                                                <td>${age || 'N/A'}</td>
+                                                <td class="action-buttons">
                                                     <button class="btn btn-small btn-success" onclick="window.Admin.verifyVoter('${voter.voter_id}')" title="Verify Voter">
-                                                        <i class="fas fa-check"></i>
+                                                        <i class="fas fa-check"></i> Approve
                                                     </button>
-                                                ` : ''}
-                                                <button class="btn btn-small btn-outline" onclick="window.Admin.viewVoter('${voter.voter_id}')" title="View Details">
-                                                    <i class="fas fa-eye"></i>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    `).join('')}
+                                                    <button class="btn btn-small btn-outline" onclick="window.Admin.viewVoter('${voter.voter_id}')" title="View Details">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
                                 </tbody>
                             </table>
-                        ` : `
-                            <div class="no-voters">
-                                <i class="fas fa-users" style="font-size: 48px; color: #a0aec0; margin-bottom: 20px;"></i>
-                                <h4>No Voters Found</h4>
-                                <p>No voters have registered yet.</p>
-                            </div>
-                        `}
+                        ` : `<div class="no-voters"><i class="fas fa-user-clock" style="font-size: 32px; color: #f59e42; margin-bottom: 10px;"></i><p>No pending voters.</p></div>`}
+
+                        <h4 style="margin-top:2.5rem;">Verified Voters (${verifiedVoters.length})</h4>
+                        ${verifiedVoters.length > 0 ? `
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Phone</th>
+                                        <th>Date of Birth</th>
+                                        <th>NID Number</th>
+                                        <th>Age</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${verifiedVoters.map(voter => {
+                                        let age = '';
+                                        if (voter.dob) {
+                                            const dob = new Date(voter.dob);
+                                            const today = new Date();
+                                            age = today.getFullYear() - dob.getFullYear();
+                                            const m = today.getMonth() - dob.getMonth();
+                                            if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+                                                age--;
+                                            }
+                                        }
+                                        return `
+                                            <tr>
+                                                <td>${voter.voter_id}</td>
+                                                <td>${Utils.sanitizeHtml(voter.full_name)}</td>
+                                                <td>${Utils.sanitizeHtml(voter.email)}</td>
+                                                <td>${Utils.sanitizeHtml(voter.phone || 'N/A')}</td>
+                                                <td>${voter.dob ? new Date(voter.dob).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</td>
+                                                <td>${voter.nid_number || 'N/A'}</td>
+                                                <td>${age || 'N/A'}</td>
+                                                <td class="action-buttons">
+                                                    <button class="btn btn-small btn-outline" onclick="window.Admin.viewVoter('${voter.voter_id}')" title="View Details">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        ` : `<div class="no-voters"><i class="fas fa-user-check" style="font-size: 32px; color: #10b981; margin-bottom: 10px;"></i><p>No verified voters.</p></div>`}
                     </div>
                 </div>
             `;
-            
         } catch (error) {
             console.error('Error loading voters:', error);
             container.innerHTML = `
@@ -1261,8 +1314,10 @@ class Admin {
                         <h3>${Utils.sanitizeHtml(voter.full_name)}</h3>
                         <p><strong>Email:</strong> ${Utils.sanitizeHtml(voter.email)}</p>
                         <p><strong>Phone:</strong> ${Utils.sanitizeHtml(voter.phone || 'N/A')}</p>
+                        <p><strong>Date of Birth:</strong> ${voter.dob ? new Date(voter.dob).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</p>
+                        <p><strong>NID Number:</strong> ${voter.nid_number || 'N/A'}</p>
+                        <p><strong>Registration Date:</strong> ${voter.registration_date ? Utils.formatDate(voter.registration_date) : 'N/A'}</p>
                         <p><strong>Verified:</strong> ${voter.is_verified === 'Y' ? 'Yes' : 'No'}</p>
-                        <p><strong>Registration Date:</strong> ${Utils.formatDate(voter.registration_date)}</p>
                     </div>
                 </div>
             `;

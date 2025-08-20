@@ -381,11 +381,82 @@ class Auth {
             userName.title = 'Click to view profile'; // Add tooltip
         }
         
-        if (this.userRole && userRole) {
-            userRole.textContent = this.userRole;
-            userRole.className = `user-role role-${this.userRole}`;
-        }
+            if (userRole) {
+                // Default role
+                let displayRole = this.userRole;
+                let roleClass = `user-role role-${this.userRole}`;
+
+                // If voter, check if approved candidate in any active election
+                if (this.userRole === 'voter') {
+                    this.checkCandidateRole(userRole);
+                } else {
+                    userRole.textContent = displayRole;
+                    userRole.className = roleClass;
+                }
+            }
     }
+
+        // Check if voter is approved candidate in any active election
+        async checkCandidateRole(userRoleElem) {
+            try {
+                const voterName = this.currentUser.full_name;
+                // Get all active elections
+                const { data: elections, error: electionsError } = await supabase
+                    .from('election')
+                    .select('election_id, name, election_date, is_active')
+                    .eq('is_active', 'Y');
+
+                if (electionsError || !elections || elections.length === 0) {
+                    userRoleElem.textContent = 'voter';
+                    userRoleElem.className = 'user-role role-voter';
+                    return;
+                }
+
+                // For each active election, check if this voter is an approved candidate
+                let isCandidate = false;
+                for (const election of elections) {
+                    // Find candidate record for this voter in this election
+                    const { data: candidate, error: candidateError } = await supabase
+                        .from('candidate')
+                        .select('candidate_id')
+                        .eq('full_name', voterName)
+                        .eq('election_id', election.election_id)
+                        .single();
+
+                    if (candidateError || !candidate) continue;
+
+                    // Check if candidate is approved (exists in contest table)
+                    const { data: contest, error: contestError } = await supabase
+                        .from('contest')
+                        .select('contest_id')
+                        .eq('candidate_id', candidate.candidate_id)
+                        .eq('election_id', election.election_id)
+                        .single();
+
+                    if (contestError || !contest) continue;
+
+                    // Check if election is still active (not ended)
+                    // If election_date is in the future, still active
+                    const now = new Date();
+                    const electionDate = new Date(election.election_date);
+                    if (electionDate >= now) {
+                        isCandidate = true;
+                        break;
+                    }
+                }
+
+                if (isCandidate) {
+                    userRoleElem.textContent = 'candidate';
+                    userRoleElem.className = 'user-role role-candidate';
+                } else {
+                    userRoleElem.textContent = 'voter';
+                    userRoleElem.className = 'user-role role-voter';
+                }
+            } catch (error) {
+                userRoleElem.textContent = 'voter';
+                userRoleElem.className = 'user-role role-voter';
+            }
+        }
 
     // Update UI for unauthenticated user
     updateUIForUnauthenticatedUser() {
