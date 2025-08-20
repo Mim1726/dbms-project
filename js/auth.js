@@ -474,7 +474,6 @@ class Auth {
                     <button class="tab-btn active" onclick="showVoterTab('elections')">Active Elections</button>
                     <button class="tab-btn" onclick="showVoterTab('candidacy')">Apply for Candidacy</button>
                     <button class="tab-btn" onclick="showVoterTab('applications')">My Applications</button>
-                    <button class="tab-btn" onclick="testDatabaseConnection()" style="background-color: #28a745; color: white;">Test DB</button>
                 </div>
 
                 <div id="voterTabContent">
