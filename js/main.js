@@ -190,11 +190,11 @@ class App {
             const isLoggedIn = window.Auth && window.Auth.isAuthenticated && window.Auth.isAuthenticated();
             if (!isLoggedIn) {
                 resultsContainer.innerHTML = `
-                    <div class="login-required">
-                        <i class="fas fa-lock" style="font-size: 64px; color: #7c5fe6; margin-bottom: 20px;"></i>
-                        <h3>Login Required</h3>
-                        <p>You must be logged in to view election results.<br>
-                        <button class="btn btn-primary" onclick="showSection('home'); document.getElementById('loginBtn').click();">Login</button></p>
+                    <div class="login-required" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; text-align: center;">
+                        <i class="fas fa-lock" style="font-size: 110px; color: #7c5fe6; margin-bottom: 32px;"></i>
+                        <h2 style="font-size: 2.2rem; font-weight: 700; margin-bottom: 12px;">Login Required</h2>
+                        <p style="font-size: 1.15rem; color: #4b3c6e; margin-bottom: 24px;">You must be logged in to view election results.</p>
+                        <button class="btn btn-primary" style="font-size: 1.1rem; padding: 0.7em 2em; border-radius: 8px;" onclick="showSection('home'); document.getElementById('loginBtn').click();">Login</button>
                     </div>
                 `;
                 return;
@@ -300,6 +300,7 @@ class App {
                 <div class="error-message">
                     <i class="fas fa-exclamation-triangle"></i>
                     <p>Error loading results. Please try again later.</p>
+                    <pre style="color: #c00; background: #f9f2f4; padding: 1em; border-radius: 8px;">${error.message || error}</pre>
                 </div>
             `;
         } finally {
