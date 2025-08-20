@@ -14,7 +14,141 @@ class Elections {
     // Setup event listeners
     setupEventListeners() {
         // Refresh elections when elections section is shown
-        document.addEventListener('sectionChanged', (e) => {
+                        <div class="results-actions">
+                    <button class="btn btn-outline" onclick="window.Elections.exportResults('${election.id}')">
+                        <i class="fas fa-download"></i> Export Results
+                    </button>
+                    <button class="btn btn-secondary" onclick="window.Elections.refreshResults('${election.id}')">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                    <button class="btn btn-primary" onclick="document.getElementById('votingModal').style.display = 'none'">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                </div>
+            </div>
+        `;
+
+        // Auto-refresh results every 30 seconds
+        this.setupAutoRefresh(election.id);
+
+        modal.style.display = 'block';
+    }
+
+    // Setup auto-refresh for results
+    setupAutoRefresh(electionId) {
+        // Clear any existing refresh interval
+        if (this.refreshInterval) {
+            clearInterval(this.refreshInterval);
+        }
+
+        // Start new refresh interval
+        this.refreshInterval = setInterval(async () => {
+            // Only refresh if modal is still open
+            const modal = document.getElementById('votingModal');
+            if (modal && modal.style.display === 'block') {
+                await this.refreshResults(electionId);
+            } else {
+                clearInterval(this.refreshInterval);
+                this.refreshInterval = null;
+            }
+        }, 30000); // Refresh every 30 seconds
+    }
+
+    // Refresh results without showing loading
+    async refreshResults(electionId) {
+        try {
+            // Get election details
+            const { data: election, error: electionError } = await supabase
+                .from(CONFIG.TABLES.ELECTIONS)
+                .select('*')
+                .eq('id', electionId)
+                .single();
+
+            if (electionError) throw electionError;
+
+            // Get candidates with vote counts
+            const { data: results, error: resultsError } = await supabase
+                .from(CONFIG.TABLES.CANDIDATES)
+                .select(\`
+                    *,
+                    votes:votes(count)
+                \`)
+                .eq('election_id', electionId)
+                .order('name');
+
+            if (resultsError) throw resultsError;
+
+            // Calculate total votes
+            const totalVotes = results.reduce((sum, candidate) => {
+                return sum + (candidate.votes?.[0]?.count || 0);
+            }, 0);
+
+            // Sort candidates by vote count
+            const sortedResults = results.sort((a, b) => {
+                const aVotes = a.votes?.[0]?.count || 0;
+                const bVotes = b.votes?.[0]?.count || 0;
+                return bVotes - aVotes;
+            });
+
+            // Update the results display
+            this.updateResultsDisplay(election, sortedResults, totalVotes);
+            
+        } catch (error) {
+            console.error('Error refreshing election results:', error);
+        }
+    }
+
+    // Update results display without recreating the entire modal
+    updateResultsDisplay(election, results, totalVotes) {
+        const summaryItems = document.querySelectorAll('.summary-value');
+        if (summaryItems.length >= 3) {
+            summaryItems[0].textContent = totalVotes;
+            summaryItems[1].textContent = results.length;
+            summaryItems[2].textContent = this.getElectionStatus(election);
+        }
+
+        const resultsList = document.querySelector('.results-list');
+        if (resultsList) {
+            resultsList.innerHTML = results.map((candidate, index) => {
+                const votes = candidate.votes?.[0]?.count || 0;
+                const percentage = Utils.calculatePercentage(votes, totalVotes);
+                const isWinner = index === 0 && votes > 0;
+                
+                return \`
+                    <div class="result-item \${isWinner ? 'winner' : ''}">
+                        <div class="candidate-info">
+                            \${candidate.photo_url ? 
+                                \`<img src="\${candidate.photo_url}" alt="\${candidate.name}" class="candidate-photo">\` :
+                                \`<div class="candidate-placeholder"><i class="fas fa-user"></i></div>\`
+                            }
+                            <div class="candidate-details">
+                                <h4>\${Utils.sanitizeHtml(candidate.name)}</h4>
+                                <p>\${Utils.sanitizeHtml(candidate.party || 'Independent')}</p>
+                                \${isWinner ? '<span class="winner-badge"><i class="fas fa-crown"></i> Winner</span>' : ''}
+                            </div>
+                        </div>
+                        
+                        <div class="vote-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: \${percentage}%"></div>
+                            </div>
+                            <div class="vote-stats">
+                                <span class="vote-count">\${votes} votes</span>
+                                <span class="vote-percentage">\${percentage}%</span>
+                            </div>
+                        </div>
+                    </div>
+                \`;
+            }).join('');
+
+            // Add smooth animation to progress bars
+            setTimeout(() => {
+                document.querySelectorAll('.progress-fill').forEach(bar => {
+                    bar.style.transition = 'width 0.5s ease-in-out';
+                });
+            }, 100);
+        }
+    }ventListener('sectionChanged', (e) => {
             if (e.detail.section === 'elections') {
                 this.loadElections();
             }
@@ -106,64 +240,151 @@ class Elections {
             return;
         }
 
-    const sortedElections = this.sortElectionsByTime(elections);
-    container.innerHTML = sortedElections.map(election => {
+        // Categorize elections
+        const ongoingElections = [];
+        const upcomingElections = [];
+        const endedElections = [];
+
+        elections.forEach(election => {
             const status = this.getElectionStatus(election);
-            const candidateCount = election.candidates ? election.candidates.length : 0;
-            
-            return `
-                <div class="election-card">
-                    <div class="election-header">
-                        <h3>${Utils.sanitizeHtml(election.name)}</h3>
-                        <span class="election-status status-${status.toLowerCase()}">${status}</span>
+            if (status === 'Active' || status === 'PreVoting') {
+                ongoingElections.push(election);
+            } else if (status === 'Upcoming') {
+                upcomingElections.push(election);
+            } else {
+                endedElections.push(election);
+            }
+        });
+
+        let html = '';
+
+        // Ongoing Elections Section
+        if (ongoingElections.length > 0) {
+            html += `
+                <div class="election-section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-play-circle"></i> Ongoing Elections</h2>
+                        <p class="section-description">Elections currently accepting votes</p>
                     </div>
-                    
-                    <p class="election-description">${Utils.sanitizeHtml(election.description || 'No description available')}</p>
-                    
-                    <div class="election-meta">
-                        <div class="meta-item">
-                            <i class="fas fa-calendar"></i>
-                            <span>Date: ${Utils.formatDate(election.election_date)}</span>
-                        </div>
-                        <div class="meta-item">
-                            <i class="fas fa-tag"></i>
-                            <span>Type: ${Utils.sanitizeHtml(election.election_type)}</span>
-                        </div>
-                        <div class="meta-item">
-                            <i class="fas fa-users"></i>
-                            <span>${candidateCount} Candidates</span>
-                        </div>
-                    </div>
-                    
-                    <div class="election-actions">
-                        ${this.getElectionActions(election, status)}
+                    <div class="elections-grid">
+                        ${ongoingElections.map(election => this.renderElectionCard(election, 'ongoing')).join('')}
                     </div>
                 </div>
             `;
-        }).join('');
+        }
+
+        // Upcoming Elections Section
+        if (upcomingElections.length > 0) {
+            html += `
+                <div class="election-section">
+                    <div class="section-header">
+                        <h2><i class="fas fa-clock"></i> Upcoming Elections</h2>
+                        <p class="section-description">Elections scheduled for the future - candidates viewable, voting not yet available</p>
+                    </div>
+                    <div class="elections-grid">
+                        ${upcomingElections.map(election => this.renderElectionCard(election, 'upcoming')).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Ended Elections Section (optional, collapsed by default)
+        if (endedElections.length > 0) {
+            html += `
+                <div class="election-section">
+                    <div class="section-header collapsible" onclick="this.parentElement.classList.toggle('collapsed')">
+                        <h2><i class="fas fa-history"></i> Past Elections</h2>
+                        <p class="section-description">View results from completed elections</p>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </div>
+                    <div class="elections-grid">
+                        ${endedElections.map(election => this.renderElectionCard(election, 'ended')).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        container.innerHTML = html;
     }
 
-    // Get election status
-    getElectionStatus(election) {
-        const now = new Date();
-        const electionDate = new Date(election.election_date);
+    // Render individual election card
+    renderElectionCard(election, category) {
+        const status = this.getElectionStatus(election);
+        const candidateCount = election.candidates ? election.candidates.length : 0;
+        
+        return `
+            <div class="election-card ${category}">
+                <div class="election-header">
+                    <h3>${Utils.sanitizeHtml(election.name)}</h3>
+                    <span class="election-status status-${status.toLowerCase()}">${status}</span>
+                </div>
+                
+                <p class="election-description">${Utils.sanitizeHtml(election.description || 'No description available')}</p>
+                
+                <div class="election-meta">
+                    <div class="meta-item">
+                        <i class="fas fa-calendar"></i>
+                        <span>Date: ${Utils.formatDate(election.election_date)}</span>
+                    </div>
+                    <div class="meta-item">
+                        <i class="fas fa-tag"></i>
+                        <span>Type: ${Utils.sanitizeHtml(election.election_type)}</span>
+                    </div>
+                    <div class="meta-item">
+                        <i class="fas fa-users"></i>
+                        <span>${candidateCount} Candidates</span>
+                    </div>
+                </div>
+                
+                <div class="election-actions">
+                    ${this.getElectionActions(election, status, category)}
+                </div>
+            </div>
+        `;
+    }
 
-        // Simple status based on is_active flag and date
-        if (election.is_active === 'Y' && electionDate >= now) {
+    // Get election status with improved logic
+    getElectionStatus(election) {
+        // If election is explicitly marked as active, return 'Active' status
+        if (election.is_active === 'Y') {
             return 'Active';
-        } else if (electionDate > now) {
-            return 'Upcoming';
+        }
+        
+        const now = new Date();
+        
+        // Use schedule table dates if available, otherwise use election_date
+        let startDate, endDate;
+        
+        if (election.schedule && election.schedule.voting_start) {
+            startDate = new Date(election.schedule.voting_start);
+            endDate = new Date(election.schedule.voting_end);
+        } else {
+            // Fallback: use election_date as end date, start 30 days before
+            endDate = new Date(election.election_date);
+            startDate = new Date(endDate);
+            startDate.setDate(startDate.getDate() - 30); // 30 days before election
+        }
+        
+        const oneMonthBeforeStart = new Date(startDate);
+        oneMonthBeforeStart.setMonth(oneMonthBeforeStart.getMonth() - 1);
+
+        if (now < oneMonthBeforeStart) {
+            return 'Upcoming'; // Too early for anything
+        } else if (now >= oneMonthBeforeStart && now < startDate) {
+            return 'PreVoting'; // Can view candidates, but not vote
+        } else if (now >= startDate && now <= endDate) {
+            return 'Active'; // Voting period
         } else {
             return 'Ended';
         }
     }
 
-    // Get appropriate actions for election based on status
-    getElectionActions(election, status) {
+    // Get appropriate actions for election based on status and category
+    getElectionActions(election, status, category) {
         const actions = [];
 
-        if (status === 'Running') {
-            // Check if user is authenticated
+        if (category === 'ongoing') {
+            // Ongoing elections: Users can vote AND view candidates
             if (window.Auth && window.Auth.isAuthenticated()) {
                 if (window.Auth.hasRole('voter')) {
                     actions.push(`
@@ -179,21 +400,37 @@ class Elections {
                     </button>
                 `);
             }
+            
+            // View candidates button for ongoing elections
+            actions.push(`
+                <button class="btn btn-outline" onclick="window.Elections.viewCandidates('${election.election_id}')">
+                    <i class="fas fa-users"></i> View Candidates
+                </button>
+            `);
+            
+        } else if (category === 'upcoming') {
+            // Upcoming elections: Users can ONLY view candidates, no voting
+            actions.push(`
+                <button class="btn btn-primary" onclick="window.Elections.viewCandidates('${election.election_id}')">
+                    <i class="fas fa-users"></i> View Candidates
+                </button>
+            `);
+            
+            actions.push(`
+                <div class="upcoming-notice">
+                    <i class="fas fa-info-circle"></i>
+                    <span>Voting will be available when the election starts</span>
+                </div>
+            `);
+            
+        } else if (category === 'ended') {
+            // Ended elections: Only view results
+            actions.push(`
+                <button class="btn btn-outline" onclick="window.Elections.viewElectionResults('${election.election_id}')">
+                    <i class="fas fa-chart-bar"></i> View Results
+                </button>
+            `);
         }
-
-        // View results button (always available)
-        actions.push(`
-            <button class="btn btn-outline" onclick="window.Elections.viewElectionResults('${election.election_id}')">
-                <i class="fas fa-chart-bar"></i> View Results
-            </button>
-        `);
-
-        // View candidates button
-        actions.push(`
-            <button class="btn btn-outline" onclick="window.Elections.viewCandidates('${election.election_id}')">
-                <i class="fas fa-users"></i> View Candidates
-            </button>
-        `);
 
         return actions.join('');
     }

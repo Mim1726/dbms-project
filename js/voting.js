@@ -99,8 +99,18 @@ class Voting {
             // Allow voting if election is marked as active OR during valid time periods
             const canVote = election.is_active === 'Y' || (status === 'PreVoting' || status === 'Active');
             
+            // Additional check: Only allow voting during 'Active' status, not 'PreVoting'
+            const canActuallyVote = election.is_active === 'Y' || status === 'Active';
+            
             if (!canVote) {
                 Utils.showToast('This election is not currently accepting votes. Please contact the administrator.', 'warning');
+                return;
+            }
+            
+            if (!canActuallyVote) {
+                // If election is in PreVoting (upcoming), show candidates but don't allow voting
+                Utils.showToast('This election is not yet open for voting. You can view the candidates below.', 'info');
+                this.showCandidatesOnly(election);
                 return;
             }
 
@@ -236,7 +246,7 @@ class Voting {
                         <i class="fas fa-times"></i> Cancel
                     </button>
                     <button id="confirmVoteBtn" class="btn btn-primary" ${preSelectedCandidateId ? '' : 'disabled'} onclick="window.Voting.confirmVote()">
-                        <i class="fas fa-vote-yea"></i> Confirm Vote
+                        <i class="fas fa-paper-plane"></i> Submit Your Vote
                     </button>
                 </div>
 
@@ -359,7 +369,7 @@ class Voting {
             
             const confirmationHTML = `
                 <div class="vote-confirmation">
-                    <h3>Confirm Your Vote</h3>
+                    <h3><i class="fas fa-vote-yea"></i> Confirm Your Vote</h3>
                     <div class="confirmation-candidate">
                         <div class="candidate-info">
                             ${selectedCandidate.photo_url ? 
@@ -374,14 +384,14 @@ class Voting {
                     </div>
                     <p class="confirmation-warning">
                         <i class="fas fa-exclamation-triangle"></i>
-                        Are you sure you want to vote for this candidate? This action cannot be undone.
+                        Are you sure you want to vote for this candidate? Once submitted, your vote cannot be changed.
                     </p>
                     <div class="confirmation-actions">
                         <button class="btn btn-outline" onclick="window.Voting.cancelConfirmation()">
-                            Cancel
+                            <i class="fas fa-arrow-left"></i> Go Back
                         </button>
                         <button class="btn btn-primary" onclick="window.Voting.proceedWithVote()">
-                            Yes, Cast My Vote
+                            <i class="fas fa-check"></i> Yes, Submit My Vote
                         </button>
                     </div>
                 </div>
