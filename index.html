@@ -68,6 +68,80 @@
                     <i class="fas fa-users voting-icon"></i>
                 </div>
             </div>
+            <div class="container" style="margin-top: 2.5rem;">
+                <div class="about-content" style="display:flex; flex-direction:column; gap:1.5rem; align-items:center; margin-top:-2.2rem;">
+                    <style>
+                        .modern-feature-card {
+                            width: 340px;
+                            max-width: 95vw;
+                            background: #fff;
+                            border-radius: 18px;
+                            box-shadow: 0 4px 24px rgba(75,60,110,0.08);
+                            padding: 1.1rem 1.5rem;
+                            display: flex;
+                            align-items: center;
+                            gap: 1.2rem;
+                            transition: box-shadow 0.2s, transform 0.2s;
+                            margin: 0 auto;
+                        }
+                        .modern-feature-card:hover {
+                            box-shadow: 0 8px 32px rgba(124,95,230,0.13);
+                            transform: translateY(-2px) scale(1.03);
+                        }
+                        .modern-feature-icon {
+                            background: linear-gradient(135deg, #7c5fe6 60%, #a0aec0 100%);
+                            border-radius: 50%;
+                            width: 54px;
+                            height: 54px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: #fff;
+                            font-size: 2rem;
+                            box-shadow: 0 2px 8px rgba(124,95,230,0.08);
+                        }
+                        .modern-feature-divider {
+                            width: 60px;
+                            height: 3px;
+                            background: linear-gradient(90deg, #7c5fe6 0%, #a0aec0 100%);
+                            border-radius: 2px;
+                            margin: 0.7rem auto 0.7rem auto;
+                        }
+                    </style>
+                    <div class="modern-feature-card">
+                        <div class="modern-feature-icon"><i class="fas fa-shield-alt"></i></div>
+                        <div>
+                            <h3 style="margin:0; font-size:1.2rem; font-weight:600; color:#7c5fe6;">Secure</h3>
+                            <p style="margin:0; font-size:1rem; color:#4b3c6e;">End-to-end encryption and secure authentication</p>
+                        </div>
+                    </div>
+                    <div class="modern-feature-divider"></div>
+                    <div class="modern-feature-card">
+                        <div class="modern-feature-icon"><i class="fas fa-eye"></i></div>
+                        <div>
+                            <h3 style="margin:0; font-size:1.2rem; font-weight:600; color:#7c5fe6;">Transparent</h3>
+                            <p style="margin:0; font-size:1rem; color:#4b3c6e;">Real-time results and audit trails</p>
+                        </div>
+                    </div>
+                    <div class="modern-feature-divider"></div>
+                    <div class="modern-feature-card">
+                        <div class="modern-feature-icon"><i class="fas fa-mobile-alt"></i></div>
+                        <div>
+                            <h3 style="margin:0; font-size:1.2rem; font-weight:600; color:#7c5fe6;">Accessible</h3>
+                            <p style="margin:0; font-size:1rem; color:#4b3c6e;">Vote from anywhere, anytime</p>
+                        </div>
+                    </div>
+                    <div class="modern-feature-divider"></div>
+                    <div class="modern-feature-card">
+                        <div class="modern-feature-icon"><i class="fas fa-check-circle"></i></div>
+                        <div>
+                            <h3 style="margin:0; font-size:1.2rem; font-weight:600; color:#7c5fe6;">Reliable</h3>
+                            <p style="margin:0; font-size:1rem; color:#4b3c6e;">99.9% uptime with cloud infrastructure</p>
+                        </div>
+                    </div>
+                    <div style="height:2.5rem;"></div>
+                </div>
+            </div>
         </section>
 
         <!-- Elections Section -->
@@ -92,30 +166,97 @@
 
         <!-- About Section -->
         <section id="about" class="section">
-            <div class="container">
-                <h2>About Our Online Voting Management System</h2>
-                <div class="about-content">
-                    <div class="feature-grid">
-                        <div class="feature-card">
-                            <i class="fas fa-shield-alt"></i>
-                            <h3>Secure</h3>
-                            <p>End-to-end encryption and secure authentication</p>
-                        </div>
-                        <div class="feature-card">
-                            <i class="fas fa-eye"></i>
-                            <h3>Transparent</h3>
-                            <p>Real-time results and audit trails</p>
-                        </div>
-                        <div class="feature-card">
-                            <i class="fas fa-mobile-alt"></i>
-                            <h3>Accessible</h3>
-                            <p>Vote from anywhere, anytime</p>
-                        </div>
-                        <div class="feature-card">
-                            <i class="fas fa-check-circle"></i>
-                            <h3>Reliable</h3>
-                            <p>99.9% uptime with cloud infrastructure</p>
-                        </div>
+            <div class="container" style="max-width: 900px; margin: 0 auto;">
+                <h2 style="text-align:center; font-size:2.5rem; font-weight:700; margin-bottom:2.5rem; color:#7c5fe6; letter-spacing:1px;">About Us</h2>
+                <style>
+                    .about-cards {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 2.5rem;
+                        justify-content: center;
+                        align-items: flex-start;
+                    }
+                    .about-card {
+                        background: linear-gradient(135deg, #f7f8fa 70%, #e9e6fa 100%);
+                        border-radius: 20px;
+                        box-shadow: 0 6px 32px rgba(124,95,230,0.10);
+                        padding: 2.2rem 2rem 1.7rem 2rem;
+                        min-width: 320px;
+                        max-width: 370px;
+                        flex: 1 1 320px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        transition: box-shadow 0.2s, transform 0.2s;
+                    }
+                    .about-card:hover {
+                        box-shadow: 0 12px 40px rgba(124,95,230,0.18);
+                        transform: translateY(-3px) scale(1.04);
+                    }
+                    .admin-avatar {
+                        width: 70px;
+                        height: 70px;
+                        border-radius: 50%;
+                        background: linear-gradient(135deg, #7c5fe6 60%, #a0aec0 100%);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        color: #fff;
+                        font-size: 2.5rem;
+                        margin-bottom: 1.1rem;
+                        box-shadow: 0 2px 8px rgba(124,95,230,0.10);
+                    }
+                    .admin-name {
+                        font-size: 1.15rem;
+                        font-weight: 600;
+                        color: #4b3c6e;
+                        margin-bottom: 0.3rem;
+                        text-align: center;
+                    }
+                    .admin-email {
+                        font-size: 1rem;
+                        color: #7c5fe6;
+                        margin-bottom: 0.7rem;
+                        text-align: center;
+                    }
+                    .admin-role {
+                        font-size: 0.95rem;
+                        color: #a0aec0;
+                        margin-bottom: 0.7rem;
+                        text-align: center;
+                    }
+                    .app-info-title {
+                        font-size: 1.2rem;
+                        font-weight: 600;
+                        color: #7c5fe6;
+                        margin-bottom: 1.1rem;
+                        text-align: center;
+                    }
+                    .app-info-list {
+                        font-size: 1.05rem;
+                        color: #4b3c6e;
+                        margin-bottom: 0.7rem;
+                        text-align: center;
+                    }
+                </style>
+                <div class="about-cards">
+                    <div class="about-card">
+                        <div class="admin-avatar"><i class="fas fa-user"></i></div>
+                        <div class="admin-name">Surya Jannat Mim</div>
+                        <div class="admin-email"><i class="fas fa-envelope"></i> <a href="mailto:mimrobo1726@gmail.com" style="color:#7c5fe6; text-decoration:underline;">mimrobo1726@gmail.com</a></div>
+                        <div class="admin-role">Admin &amp; Developer</div>
+                    </div>
+                    <div class="about-card">
+                        <div class="admin-avatar"><i class="fas fa-user"></i></div>
+                        <div class="admin-name">Tamal Kanti Sarker</div>
+                        <div class="admin-email"><i class="fas fa-envelope"></i> <a href="mailto:tamalkanti223@gmail.com" style="color:#7c5fe6; text-decoration:underline;">tamalkanti223@gmail.com</a></div>
+                        <div class="admin-role">Admin &amp; Developer</div>
+                    </div>
+                    <div class="about-card">
+                        <div class="app-info-title"><i class="fas fa-info-circle"></i> Application Info</div>
+                        <div class="app-info-list"><strong>Name:</strong> Online Voting Management System</div>
+                        <div class="app-info-list"><strong>Version:</strong> 1.0.0</div>
+                        <div class="app-info-list"><strong>Description:</strong> A secure, transparent, and reliable platform for managing elections and voting online.</div>
                     </div>
                 </div>
             </div>
