@@ -152,29 +152,8 @@ class App {
             } else if (sectionName === 'results') {
                 this.loadSectionContent(sectionName);
             }
-            // If results section, load results for voter
-            if (sectionName === 'results') {
-                this.loadResultsForVoter();
-            }
             // For home and about, do NOT load voter/admin dashboard
             // They remain static as before login
-        }
-    }
-
-    // Load results for voter
-    loadResultsForVoter() {
-        // You can customize this to fetch and display results
-        // For now, just show a message if no results
-        const resultsContainer = document.getElementById('resultsSection');
-        if (resultsContainer) {
-            // Clear previous content
-            resultsContainer.innerHTML = '';
-            // TODO: Fetch results from backend and display
-            // Placeholder:
-            const msg = document.createElement('div');
-            msg.className = 'alert alert-info';
-            msg.innerText = 'Election results will be displayed here.';
-            resultsContainer.appendChild(msg);
         }
     }
 
@@ -935,24 +914,16 @@ function formatDate(dateString) {
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.App = new App();
-
-    // Attach event to voter dashboard results button
-    const voterResultsBtn = document.getElementById('viewResultsBtn');
-    if (voterResultsBtn) {
-        voterResultsBtn.onclick = function() {
-            window.App.showSection('results');
-        };
-    }
-
+    
     // Clear any auto-filled password fields
     clearAutoFilledPasswords();
-
+    
     // Setup keyboard shortcuts
     window.App.setupKeyboardShortcuts();
-
+    
     // Setup network status monitoring
     window.App.setupNetworkStatus();
-
+    
     // Initialize service worker
     window.App.initServiceWorker();
 });

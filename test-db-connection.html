@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Connection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .loading {
+            display: none;
+            color: #666;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔗 Database Connection Test</h1>
+        <p>This page will test your Supabase database connection and verify your tables are set up correctly.</p>
+        
+        <div id="results"></div>
+        
+        <button onclick="testConnection()">🔍 Test Connection</button>
+        <button onclick="testTables()">📋 Test Tables</button>
+        <button onclick="testSampleData()">📊 Test Sample Data</button>
+        <button onclick="runAllTests()">🚀 Run All Tests</button>
+        
+        <div id="loading" class="loading">⏳ Testing...</div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Your Supabase configuration
+        const SUPABASE_URL = 'https://uovfisgqnvjthbqmwfdk.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdmZpc2dxbnZqdGhicW13ZmRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUzMTI1NzQsImV4cCI6MjA3MDg4ODU3NH0.a9j65YDOfaLDmF7Hp7zjGmtPvec4qDl3rG5woNtQcE4';
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = message;
+            results.appendChild(div);
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        async function testConnection() {
+            clearResults();
+            showLoading();
+            
+            try {
+                addResult('🔍 Testing Supabase connection...', 'info');
+                
+                // Simple test query
+                const { data, error } = await supabase
+                    .from('admin')
+                    .select('count', { count: 'exact' });
+
+                if (error) {
+                    addResult(`❌ Connection failed: ${error.message}`, 'error');
+                    addResult('💡 This usually means tables don\'t exist yet. Run the schema SQL first!', 'info');
+                } else {
+                    addResult('✅ Successfully connected to Supabase PostgreSQL database!', 'success');
+                    addResult(`📊 Found admin table with ${data.length} records`, 'success');
+                }
+            } catch (err) {
+                addResult(`❌ Connection error: ${err.message}`, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function testTables() {
+            clearResults();
+            showLoading();
+            
+            const tables = ['admin', 'voter', 'candidate', 'election', 'schedule', 'contest', 'vote', 'result', 'audit_log', 'notification', 'backup'];
+            let successCount = 0;
+            
+            addResult('🔍 Testing all database tables...', 'info');
+            
+            for (const table of tables) {
+                try {
+                    const { data, error } = await supabase
+                        .from(table)
+                        .select('*', { count: 'exact' })
+                        .limit(1);
+                    
+                    if (error) {
+                        addResult(`❌ Table '${table}': ${error.message}`, 'error');
+                    } else {
+                        addResult(`✅ Table '${table}': OK`, 'success');
+                        successCount++;
+                    }
+                } catch (err) {
+                    addResult(`❌ Table '${table}': ${err.message}`, 'error');
+                }
+            }
+            
+            addResult(`📊 Summary: ${successCount}/${tables.length} tables working correctly`, 
+                     successCount === tables.length ? 'success' : 'error');
+            
+            hideLoading();
+        }
+
+        async function testSampleData() {
+            clearResults();
+            showLoading();
+            
+            try {
+                addResult('🔍 Testing sample data insertion...', 'info');
+                
+                // Test inserting a sample admin
+                const { data: adminData, error: adminError } = await supabase
+                    .from('admin')
+                    .upsert([{
+                        admin_id: 999,
+                        full_name: 'Test Admin',
+                        email: 'test@admin.com',
+                        password: 'test123'
+                    }])
+                    .select();
+
+                if (adminError) {
+                    addResult(`❌ Failed to insert sample admin: ${adminError.message}`, 'error');
+                } else {
+                    addResult('✅ Successfully inserted sample admin data', 'success');
+                    
+                    // Clean up test data
+                    await supabase.from('admin').delete().eq('admin_id', 999);
+                    addResult('🧹 Cleaned up test data', 'info');
+                }
+
+                // Test inserting a sample voter
+                const { data: voterData, error: voterError } = await supabase
+                    .from('voter')
+                    .upsert([{
+                        voter_id: 999,
+                        full_name: 'Test Voter',
+                        email: 'test@voter.com',
+                        password: 'test123',
+                        is_verified: 'N'
+                    }])
+                    .select();
+
+                if (voterError) {
+                    addResult(`❌ Failed to insert sample voter: ${voterError.message}`, 'error');
+                } else {
+                    addResult('✅ Successfully inserted sample voter data', 'success');
+                    
+                    // Clean up test data
+                    await supabase.from('voter').delete().eq('voter_id', 999);
+                    addResult('🧹 Cleaned up voter test data', 'info');
+                }
+
+            } catch (err) {
+                addResult(`❌ Sample data test error: ${err.message}`, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function runAllTests() {
+            clearResults();
+            addResult('🚀 Running comprehensive database tests...', 'info');
+            
+            await testConnection();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await testTables();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await testSampleData();
+            
+            addResult('🎉 All tests completed!', 'success');
+        }
+
+        // Run basic connection test on page load
+        window.addEventListener('load', () => {
+            setTimeout(testConnection, 1000);
+        });
+    </script>
+</body>
+</html>

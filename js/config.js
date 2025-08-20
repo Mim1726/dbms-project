@@ -21,13 +21,18 @@ const CONFIG = {
     // Pagination
     DEFAULT_PAGE_SIZE: 10,
     
-    // Database table names
+    // Database table names (matching your current Supabase schema)
     TABLES: {
-        USERS: 'admin', // Using admin table for admin users
-        ELECTIONS: 'election',
+        ADMINS: 'admin',
+        VOTERS: 'voter', 
         CANDIDATES: 'candidate',
+        ELECTIONS: 'election',
+        SCHEDULES: 'schedule', 
+        CONTESTS: 'contest',
         VOTES: 'vote',
-        VOTERS: 'voter'
+        RESULTS: 'result',
+        AUDIT_LOGS: 'audit_log',
+        NOTIFICATIONS: 'notification'
     },
     
     // User roles

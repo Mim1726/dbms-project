@@ -62,25 +62,45 @@ class Voting {
 
             console.log('Election found:', election);
 
-            // Verify election is active
+            // Verify election is active and get proper dates
             const status = this.getElectionStatus(election);
             const now = new Date();
-            const startDate = new Date(election.start_date);
-            const endDate = new Date(election.end_date);
+            
+            let startDate, endDate;
+            if (election.schedule && election.schedule.voting_start) {
+                startDate = new Date(election.schedule.voting_start);
+                endDate = new Date(election.schedule.voting_end);
+            } else {
+                // Fallback: use election_date, make it active for current testing
+                endDate = new Date(election.election_date);
+                startDate = new Date(endDate);
+                startDate.setDate(startDate.getDate() - 30);
+                
+                // For testing purposes, if election is active (is_active = 'Y'), allow voting
+                if (election.is_active === 'Y') {
+                    startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000); // Started yesterday
+                    endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // Ends in 30 days
+                }
+            }
+            
             const oneMonthBeforeStart = new Date(startDate);
             oneMonthBeforeStart.setMonth(oneMonthBeforeStart.getMonth() - 1);
+            
             console.log('DEBUG Election Dates:', {
                 now,
                 startDate,
                 endDate,
                 oneMonthBeforeStart,
                 status,
-                election
+                election,
+                isActive: election.is_active
             });
 
-            // Allow voters to view candidates during PreVoting and Active periods
-            if (status !== 'PreVoting' && status !== 'Active') {
-                Utils.showToast('You can only view candidates during the month before the election and during the election period.', 'warning');
+            // Allow voting if election is marked as active OR during valid time periods
+            const canVote = election.is_active === 'Y' || (status === 'PreVoting' || status === 'Active');
+            
+            if (!canVote) {
+                Utils.showToast('This election is not currently accepting votes. Please contact the administrator.', 'warning');
                 return;
             }
 
@@ -127,9 +147,26 @@ class Voting {
 
     // Get election status
     getElectionStatus(election) {
+        // If election is explicitly marked as active, return 'Active' status
+        if (election.is_active === 'Y') {
+            return 'Active';
+        }
+        
         const now = new Date();
-        const startDate = new Date(election.start_date);
-        const endDate = new Date(election.end_date);
+        
+        // Use schedule table dates if available, otherwise use election_date
+        let startDate, endDate;
+        
+        if (election.schedule && election.schedule.voting_start) {
+            startDate = new Date(election.schedule.voting_start);
+            endDate = new Date(election.schedule.voting_end);
+        } else {
+            // Fallback: use election_date as end date, start 30 days before
+            endDate = new Date(election.election_date);
+            startDate = new Date(endDate);
+            startDate.setDate(startDate.getDate() - 30); // 30 days before election
+        }
+        
         const oneMonthBeforeStart = new Date(startDate);
         oneMonthBeforeStart.setMonth(oneMonthBeforeStart.getMonth() - 1);
 

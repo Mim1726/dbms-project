@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Database Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 50px auto; 
+            padding: 20px; 
+            background: #f5f5f5; 
+        }
+        .container { 
+            background: white; 
+            padding: 30px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        }
+        .result { 
+            margin: 10px 0; 
+            padding: 15px; 
+            border-radius: 5px; 
+            font-weight: bold; 
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button { 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            padding: 12px 24px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin: 10px 5px;
+            font-size: 16px;
+        }
+        button:hover { background: #0056b3; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 Supabase Database Connection Test</h1>
+        <p>Testing your voting system database connection...</p>
+        
+        <div id="results"></div>
+        
+        <button onclick="testQuickConnection()">🚀 Quick Test</button>
+        <button onclick="testDataStructure()">📊 Test Data</button>
+        <button onclick="testElectionsLoad()">🗳️ Test Elections</button>
+        <button onclick="openMainApp()">📱 Open Main App</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Your exact Supabase configuration
+        const SUPABASE_URL = 'https://uovfisgqnvjthbqmwfdk.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdmZpc2dxbnZqdGhicW13ZmRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUzMTI1NzQsImV4cCI6MjA3MDg4ODU3NH0.a9j65YDOfaLDmF7Hp7zjGmtPvec4qDl3rG5woNtQcE4';
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = message;
+            results.appendChild(div);
+            results.scrollTop = results.scrollHeight;
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        async function testQuickConnection() {
+            clearResults();
+            addResult('🔍 Testing database connection...', 'info');
+            
+            try {
+                // Test admin table
+                const { data: adminData, error: adminError } = await supabase
+                    .from('admin')
+                    .select('admin_id, full_name, email')
+                    .limit(5);
+
+                if (adminError) {
+                    addResult(`❌ Admin table error: ${adminError.message}`, 'error');
+                } else {
+                    addResult(`✅ Admin table: Found ${adminData.length} admins`, 'success');
+                    adminData.forEach(admin => {
+                        addResult(`&nbsp;&nbsp;• ${admin.full_name} (${admin.email})`, 'info');
+                    });
+                }
+
+                // Test voter table
+                const { data: voterData, error: voterError } = await supabase
+                    .from('voter')
+                    .select('voter_id, full_name, email, is_verified')
+                    .limit(5);
+
+                if (voterError) {
+                    addResult(`❌ Voter table error: ${voterError.message}`, 'error');
+                } else {
+                    addResult(`✅ Voter table: Found ${voterData.length} voters`, 'success');
+                    const verified = voterData.filter(v => v.is_verified === 'Y').length;
+                    addResult(`&nbsp;&nbsp;• ${verified} verified, ${voterData.length - verified} pending`, 'info');
+                }
+
+                addResult('✅ Database connection successful!', 'success');
+                
+            } catch (err) {
+                addResult(`❌ Connection failed: ${err.message}`, 'error');
+            }
+        }
+
+        async function testDataStructure() {
+            clearResults();
+            addResult('📊 Testing data structure...', 'info');
+
+            const tables = [
+                { name: 'admin', description: 'System administrators' },
+                { name: 'voter', description: 'Registered voters' },
+                { name: 'candidate', description: 'Election candidates' },
+                { name: 'election', description: 'Elections' },
+                { name: 'contest', description: 'Candidate-Election links' },
+                { name: 'vote', description: 'Cast votes' },
+                { name: 'result', description: 'Election results' }
+            ];
+
+            for (const table of tables) {
+                try {
+                    const { count, error } = await supabase
+                        .from(table.name)
+                        .select('*', { count: 'exact', head: true });
+
+                    if (error) {
+                        addResult(`❌ ${table.name}: ${error.message}`, 'error');
+                    } else {
+                        addResult(`✅ ${table.name}: ${count} records (${table.description})`, 'success');
+                    }
+                } catch (err) {
+                    addResult(`❌ ${table.name}: ${err.message}`, 'error');
+                }
+            }
+        }
+
+        async function testElectionsLoad() {
+            clearResults();
+            addResult('🗳️ Testing elections data...', 'info');
+
+            try {
+                // Get elections with candidates
+                const { data: elections, error: electionError } = await supabase
+                    .from('election')
+                    .select(`
+                        election_id,
+                        name,
+                        election_type,
+                        election_date,
+                        is_active,
+                        candidate!inner(
+                            candidate_id,
+                            full_name,
+                            party,
+                            status
+                        )
+                    `);
+
+                if (electionError) {
+                    addResult(`❌ Elections query error: ${electionError.message}`, 'error');
+                    return;
+                }
+
+                addResult(`✅ Found ${elections.length} elections with candidates`, 'success');
+                
+                const activeElections = elections.filter(e => e.is_active === 'Y');
+                addResult(`📊 ${activeElections.length} active elections`, 'info');
+
+                elections.forEach(election => {
+                    const candidateCount = election.candidate ? election.candidate.length : 0;
+                    const status = election.is_active === 'Y' ? '🟢 Active' : '🔴 Inactive';
+                    addResult(`&nbsp;&nbsp;• ${election.name} - ${candidateCount} candidates ${status}`, 'info');
+                });
+
+                // Test contest table
+                const { data: contests, error: contestError } = await supabase
+                    .from('contest')
+                    .select('*');
+
+                if (!contestError) {
+                    addResult(`✅ Contest table: ${contests.length} candidate registrations`, 'success');
+                }
+
+                // Test voting capability
+                const { data: votes, error: voteError } = await supabase
+                    .from('vote')
+                    .select('*');
+
+                if (!voteError) {
+                    addResult(`✅ Vote table: ${votes.length} votes cast`, 'success');
+                }
+
+                addResult('🎉 Election system data structure looks good!', 'success');
+
+            } catch (err) {
+                addResult(`❌ Elections test failed: ${err.message}`, 'error');
+            }
+        }
+
+        function openMainApp() {
+            window.open('http://localhost:8000', '_blank');
+        }
+
+        // Auto-run quick test on page load
+        window.addEventListener('load', () => {
+            setTimeout(testQuickConnection, 1000);
+        });
+    </script>
+</body>
+</html>
