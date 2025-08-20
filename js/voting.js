@@ -37,6 +37,8 @@ class Voting {
             return;
         }
 
+    // ...existing code...
+
         Utils.showLoading();
         
         try {
@@ -62,41 +64,51 @@ class Voting {
 
             // Verify election is active
             const status = this.getElectionStatus(election);
-            console.log('Election status:', status);
-            
-            if (status !== 'Active') {
-                Utils.showToast('This election is not currently active', 'warning');
+            const now = new Date();
+            const startDate = new Date(election.start_date);
+            const endDate = new Date(election.end_date);
+            const oneMonthBeforeStart = new Date(startDate);
+            oneMonthBeforeStart.setMonth(oneMonthBeforeStart.getMonth() - 1);
+            console.log('DEBUG Election Dates:', {
+                now,
+                startDate,
+                endDate,
+                oneMonthBeforeStart,
+                status,
+                election
+            });
+
+            // Allow voters to view candidates during PreVoting and Active periods
+            if (status !== 'PreVoting' && status !== 'Active') {
+                Utils.showToast('You can only view candidates during the month before the election and during the election period.', 'warning');
                 return;
             }
 
             console.log('Fetching candidates...');
 
             // Get approved candidates through contest table
-            const { data: contestsData, error: candidatesError } = await supabase
-                .from('contest')
-                .select(`
-                    *,
-                    candidate:candidate_id (
-                        *
-                    )
-                `)
-                .eq('election_id', electionId)
-                .order('position');
+                const intElectionId = parseInt(electionId, 10);
+                const { data: candidates, error: candidatesError } = await supabase
+                    .from('candidate')
+                    .select('*')
+                    .eq('election_id', intElectionId)
+                    .eq('status', 'approved');
 
-            if (candidatesError) {
-                console.error('Candidates fetch error:', candidatesError);
-                throw candidatesError;
-            }
+                if (candidatesError) {
+                    console.error('Candidates fetch error:', candidatesError);
+                    throw candidatesError;
+                }
 
-            // Extract candidates from contest data
-            const candidates = contestsData?.map(contest => contest.candidate).filter(Boolean) || [];
+                console.log('Candidates found:', candidates);
 
-            console.log('Candidates found:', candidates);
-
-            if (!candidates || candidates.length === 0) {
-                Utils.showToast('No approved candidates found for this election', 'warning');
-                return;
-            }
+                if (!candidates || candidates.length === 0) {
+                    Utils.showToast('No candidates found for this election', 'warning');
+                    this.currentElection = election;
+                    this.currentCandidates = [];
+                    this.selectedCandidate = null;
+                    this.showVotingInterface();
+                    return;
+                }
 
             this.currentElection = election;
             this.currentCandidates = candidates;
@@ -118,11 +130,15 @@ class Voting {
         const now = new Date();
         const startDate = new Date(election.start_date);
         const endDate = new Date(election.end_date);
+        const oneMonthBeforeStart = new Date(startDate);
+        oneMonthBeforeStart.setMonth(oneMonthBeforeStart.getMonth() - 1);
 
-        if (now < startDate) {
-            return 'Upcoming';
+        if (now < oneMonthBeforeStart) {
+            return 'Upcoming'; // Candidacy applications allowed
+        } else if (now >= oneMonthBeforeStart && now < startDate) {
+            return 'PreVoting'; // Voters can view candidates, candidacy applications closed
         } else if (now >= startDate && now <= endDate) {
-            return 'Active';
+            return 'Active'; // Voting period
         } else {
             return 'Ended';
         }

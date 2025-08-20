@@ -1069,7 +1069,47 @@ class Admin {
 
     // View candidate details (placeholder)
     async viewCandidate(candidateId) {
-        Utils.showToast('View candidate details functionality coming soon!', 'info');
+        try {
+            Utils.showLoading();
+            const { data: candidate, error } = await supabase
+                .from('candidate')
+                .select('*')
+                .eq('candidate_id', candidateId)
+                .single();
+
+            if (error || !candidate) {
+                Utils.showToast('Candidate details not found.', 'error');
+                return;
+            }
+
+            // Create modal HTML
+            let modal = document.getElementById('candidateDetailsModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'candidateDetailsModal';
+                modal.className = 'modal';
+                document.body.appendChild(modal);
+            }
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <span class="close" onclick="document.getElementById('candidateDetailsModal').style.display='none'">&times;</span>
+                    <h2>Candidate Details</h2>
+                    <div class="candidate-profile">
+                        ${candidate.photo_url ? `<img src="${candidate.photo_url}" class="candidate-photo" alt="${candidate.full_name}">` : ''}
+                        <h3>${Utils.sanitizeHtml(candidate.full_name)}</h3>
+                        <p><strong>Party:</strong> ${Utils.sanitizeHtml(candidate.party || 'Independent')}</p>
+                        <p><strong>Symbol:</strong> ${Utils.sanitizeHtml(candidate.symbol || 'N/A')}</p>
+                        <p><strong>Biography:</strong> ${Utils.sanitizeHtml(candidate.biography || 'No biography provided.')}</p>
+                        <p><strong>Status:</strong> ${Utils.sanitizeHtml(candidate.status)}</p>
+                    </div>
+                </div>
+            `;
+            modal.style.display = 'block';
+        } catch (error) {
+            Utils.showToast('Error loading candidate details: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
     }
 
     // Load voters tab
@@ -1192,7 +1232,46 @@ class Admin {
 
     // View voter details (placeholder)
     async viewVoter(voterId) {
-        Utils.showToast('View voter details functionality coming soon!', 'info');
+        try {
+            Utils.showLoading();
+            const { data: voter, error } = await supabase
+                .from('voter')
+                .select('*')
+                .eq('voter_id', voterId)
+                .single();
+
+            if (error || !voter) {
+                Utils.showToast('Voter details not found.', 'error');
+                return;
+            }
+
+            // Create modal HTML
+            let modal = document.getElementById('voterDetailsModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'voterDetailsModal';
+                modal.className = 'modal';
+                document.body.appendChild(modal);
+            }
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <span class="close" onclick="document.getElementById('voterDetailsModal').style.display='none'">&times;</span>
+                    <h2>Voter Details</h2>
+                    <div class="voter-profile">
+                        <h3>${Utils.sanitizeHtml(voter.full_name)}</h3>
+                        <p><strong>Email:</strong> ${Utils.sanitizeHtml(voter.email)}</p>
+                        <p><strong>Phone:</strong> ${Utils.sanitizeHtml(voter.phone || 'N/A')}</p>
+                        <p><strong>Verified:</strong> ${voter.is_verified === 'Y' ? 'Yes' : 'No'}</p>
+                        <p><strong>Registration Date:</strong> ${Utils.formatDate(voter.registration_date)}</p>
+                    </div>
+                </div>
+            `;
+            modal.style.display = 'block';
+        } catch (error) {
+            Utils.showToast('Error loading voter details: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
     }
 
     // Load results tab

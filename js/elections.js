@@ -26,21 +26,28 @@ class Elections {
         Utils.showLoading();
         
         try {
+            // Fetch elections and schedules
             const { data: elections, error } = await supabase
                 .from('election')
-                .select(`
-                    *,
-                    candidates:contest(
-                        candidate:candidate_id(*)
-                    )
-                `)
+                .select(`*, candidates:contest(candidate:candidate_id(*))`)
                 .order('election_date', { ascending: false });
 
             if (error) throw error;
 
-            this.currentElections = elections;
-            this.displayElections(elections);
-            
+            const { data: schedules, error: scheduleError } = await supabase
+                .from('schedule')
+                .select('*');
+
+            if (scheduleError) throw scheduleError;
+
+            // Attach schedule info to elections
+            const electionsWithSchedule = elections.map(election => {
+                const schedule = schedules.find(s => s.election_id === election.election_id);
+                return { ...election, schedule };
+            });
+
+            this.currentElections = electionsWithSchedule;
+            this.displayElections(electionsWithSchedule);
         } catch (error) {
             console.error('Error loading elections:', error);
             Utils.showToast('Error loading elections', 'error');
@@ -48,6 +55,40 @@ class Elections {
         } finally {
             Utils.hideLoading();
         }
+    }
+    
+    // Utility to get election status
+    getElectionStatus(election) {
+        const now = new Date();
+        if (!election.schedule) return 'Unknown';
+        const votingStart = new Date(election.schedule.voting_start);
+        const votingEnd = new Date(election.schedule.voting_end);
+        if (now >= votingStart && now <= votingEnd) {
+            return 'Running';
+        } else if (now < votingStart) {
+            return 'Upcoming';
+        } else {
+            return 'Ended';
+        }
+    }
+    
+    // Filter and sort elections by time, running elections at the top
+    sortElectionsByTime(elections) {
+        return elections
+            .map(election => ({
+                ...election,
+                status: this.getElectionStatus(election)
+            }))
+            .sort((a, b) => {
+                if (a.status === 'Running' && b.status !== 'Running') return -1;
+                if (a.status !== 'Running' && b.status === 'Running') return 1;
+                if (a.status === 'Upcoming' && b.status === 'Ended') return -1;
+                if (a.status === 'Ended' && b.status === 'Upcoming') return 1;
+                // Sort by voting_start if available, else election_date
+                const aDate = a.schedule ? new Date(a.schedule.voting_start) : new Date(a.election_date);
+                const bDate = b.schedule ? new Date(b.schedule.voting_start) : new Date(b.election_date);
+                return aDate - bDate;
+            });
     }
 
     // Display elections in the UI
@@ -65,7 +106,8 @@ class Elections {
             return;
         }
 
-        container.innerHTML = elections.map(election => {
+    const sortedElections = this.sortElectionsByTime(elections);
+    container.innerHTML = sortedElections.map(election => {
             const status = this.getElectionStatus(election);
             const candidateCount = election.candidates ? election.candidates.length : 0;
             
@@ -120,12 +162,12 @@ class Elections {
     getElectionActions(election, status) {
         const actions = [];
 
-        if (status === 'Active') {
+        if (status === 'Running') {
             // Check if user is authenticated
             if (window.Auth && window.Auth.isAuthenticated()) {
                 if (window.Auth.hasRole('voter')) {
                     actions.push(`
-                        <button class="btn btn-primary" onclick="window.Elections.checkVotingEligibility('${election.election_id}')">
+                        <button class="btn btn-primary" onclick="window.Voting.startVoting('${election.election_id}')">
                             <i class="fas fa-vote-yea"></i> Vote Now
                         </button>
                     `);
@@ -361,10 +403,11 @@ class Elections {
         
         try {
             // Get election details
+            const intElectionId = parseInt(electionId, 10);
             const { data: election, error: electionError } = await supabase
                 .from(CONFIG.TABLES.ELECTIONS)
                 .select('*')
-                .eq('id', electionId)
+                .eq('election_id', intElectionId)
                 .single();
 
             if (electionError) throw electionError;
@@ -373,7 +416,8 @@ class Elections {
             const { data: candidates, error: candidatesError } = await supabase
                 .from(CONFIG.TABLES.CANDIDATES)
                 .select('*')
-                .eq('election_id', electionId)
+                .eq('election_id', intElectionId)
+                .eq('status', 'approved')
                 .order('name');
 
             if (candidatesError) throw candidatesError;
