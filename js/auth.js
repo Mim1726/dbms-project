@@ -545,11 +545,10 @@ class Auth {
                 `;
             } else {
                 dashboardNav.innerHTML = `
-                    <a href="#dashboard-home" class="nav-link active" onclick="showDashboardSection('home')">Dashboard</a>
                     <a href="#available-elections" class="nav-link" onclick="showDashboardSection('elections')">Elections</a>
                     <a href="#my-votes" class="nav-link" onclick="showDashboardSection('my-votes')">My Votes</a>
                     <a href="#election-results" class="nav-link" onclick="showDashboardSection('results')">Results</a>
-                    <a href="#my-profile" class="nav-link" onclick="showDashboardSection('profile')">Profile</a>
+                    <a href="#dashboard-home" class="nav-link active" onclick="showDashboardSection('home')">Dashboard</a>
                 `;
             }
             
@@ -662,7 +661,7 @@ class Auth {
         container.innerHTML = `
             <div class="dashboard-home">
                 <div class="dashboard-header">
-                    <h1>Voter Dashboard</h1>
+                    <h2>Voter Dashboard</h2>
                     <p>Welcome back, ${this.currentUser.full_name}! Stay informed and participate in elections.</p>
                 </div>
                 
@@ -713,11 +712,6 @@ class Auth {
                             <i class="fas fa-chart-pie"></i>
                             <h3>Election Results</h3>
                             <p>View results of completed elections</p>
-                        </div>
-                        <div class="action-card" onclick="showDashboardSection('profile')">
-                            <i class="fas fa-user-edit"></i>
-                            <h3>Update Profile</h3>
-                            <p>Manage your account information</p>
                         </div>
                     </div>
                 </div>
@@ -1123,6 +1117,147 @@ class Auth {
             const container = document.getElementById('applicationsContainer');
             if (container) {
                 container.innerHTML = '<p>Error loading applications. Please try again.</p>';
+            }
+        }
+    }
+
+    // Show voter's voting history
+    async showMyVotes() {
+        try {
+            const voterContent = document.getElementById('voterContent');
+            if (!voterContent) return;
+
+            // Show loading state
+            voterContent.innerHTML = `
+                <div class="dashboard-header">
+                    <h2><i class="fas fa-history"></i> My Voting History</h2>
+                </div>
+                <div class="loading-message">
+                    <i class="fas fa-spinner fa-spin"></i> Loading your voting history...
+                </div>
+            `;
+
+            // Get voter's votes with detailed information
+            const { data: votes, error: votesError } = await supabase
+                .from('vote')
+                .select(`
+                    vote_id,
+                    vote_timestamp,
+                    candidate:candidate_id (
+                        candidate_id,
+                        full_name,
+                        party_name,
+                        contest:contest_id (
+                            contest_id,
+                            contest_name,
+                            election:election_id (
+                                election_id,
+                                election_name,
+                                election_date
+                            )
+                        )
+                    )
+                `)
+                .eq('voter_id', this.currentUser.voter_id)
+                .order('vote_timestamp', { ascending: false });
+
+            if (votesError) {
+                console.error('Error loading votes:', votesError);
+                voterContent.innerHTML = `
+                    <div class="dashboard-header">
+                        <h2><i class="fas fa-history"></i> My Voting History</h2>
+                    </div>
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Error loading voting history. Please try again.
+                    </div>
+                `;
+                return;
+            }
+
+            // Display votes
+            if (!votes || votes.length === 0) {
+                voterContent.innerHTML = `
+                    <div class="dashboard-header">
+                        <h2><i class="fas fa-history"></i> My Voting History</h2>
+                    </div>
+                    <div class="empty-state">
+                        <i class="fas fa-ballot"></i>
+                        <h3>No Votes Yet</h3>
+                        <p>You haven't participated in any elections yet. Check the Elections section to see available elections.</p>
+                        <button onclick="showDashboardSection('elections')" class="btn btn-primary">
+                            <i class="fas fa-vote-yea"></i> View Elections
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            // Build votes display
+            const votesHtml = votes.map(vote => {
+                const candidate = vote.candidate;
+                const contest = candidate?.contest;
+                const election = contest?.election;
+                
+                return `
+                    <div class="vote-card">
+                        <div class="vote-header">
+                            <h4>${election?.election_name || 'Unknown Election'}</h4>
+                            <span class="vote-date">
+                                <i class="fas fa-calendar"></i>
+                                ${new Date(vote.vote_timestamp).toLocaleDateString()}
+                            </span>
+                        </div>
+                        <div class="vote-details">
+                            <div class="vote-info">
+                                <label>Contest:</label>
+                                <span>${contest?.contest_name || 'Unknown Contest'}</span>
+                            </div>
+                            <div class="vote-info">
+                                <label>Candidate:</label>
+                                <span>${candidate?.full_name || 'Unknown Candidate'}</span>
+                            </div>
+                            <div class="vote-info">
+                                <label>Party:</label>
+                                <span>${candidate?.party_name || 'Independent'}</span>
+                            </div>
+                            <div class="vote-info">
+                                <label>Vote Time:</label>
+                                <span>${new Date(vote.vote_timestamp).toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            voterContent.innerHTML = `
+                <div class="dashboard-header">
+                    <h2><i class="fas fa-history"></i> My Voting History</h2>
+                    <div class="stats-summary">
+                        <span class="stat-item">
+                            <i class="fas fa-vote-yea"></i>
+                            <strong>${votes.length}</strong> Vote${votes.length !== 1 ? 's' : ''} Cast
+                        </span>
+                    </div>
+                </div>
+                <div class="votes-container">
+                    ${votesHtml}
+                </div>
+            `;
+
+        } catch (error) {
+            console.error('Error showing votes:', error);
+            const voterContent = document.getElementById('voterContent');
+            if (voterContent) {
+                voterContent.innerHTML = `
+                    <div class="dashboard-header">
+                        <h2><i class="fas fa-history"></i> My Voting History</h2>
+                    </div>
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        An unexpected error occurred. Please try again.
+                    </div>
+                `;
             }
         }
     }
@@ -1570,12 +1705,6 @@ function showDashboardSection(section) {
         case 'my-votes':
             // Show voter's voting history
             window.Auth.showMyVotes();
-            break;
-        case 'profile':
-            // Show user profile
-            if (window.Auth.currentUser) {
-                showUserProfile();
-            }
             break;
     }
 }
