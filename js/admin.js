@@ -1234,20 +1234,10 @@ class Admin {
         try {
             Utils.showLoading();
 
-            // Get detailed candidate information
+            // Get candidate information (without voter relationship since voter_id doesn't exist)
             const { data: candidate, error } = await supabase
                 .from('candidate')
-                .select(`
-                    *,
-                    voter:voter_id (
-                        voter_id,
-                        full_name,
-                        email,
-                        phone,
-                        address,
-                        dob
-                    )
-                `)
+                .select('*')
                 .eq('candidate_id', candidateId)
                 .single();
 
@@ -1260,113 +1250,165 @@ class Admin {
                 .eq('election_id', candidate.election_id)
                 .single();
 
+            // Try to find voter by matching the candidate's full_name with voter's full_name
+            let voter = null;
+            if (candidate.full_name) {
+                const { data: voterData } = await supabase
+                    .from('voter')
+                    .select('voter_id, full_name, email, phone, address, dob')
+                    .eq('full_name', candidate.full_name)
+                    .single();
+                
+                voter = voterData;
+            }
+
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 1000;
+                padding: 20px;
+                box-sizing: border-box;
+            `;
             modal.innerHTML = `
-                <div class="modal candidate-details-modal">
-                    <div class="modal-header">
-                        <h2><i class="fas fa-user-tie"></i> Candidate Application Details</h2>
-                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
+                <div class="candidate-details-modal" style="
+                    background: white;
+                    border-radius: 12px;
+                    max-width: 800px;
+                    width: 100%;
+                    max-height: 90vh;
+                    overflow-y: auto;
+                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                    position: relative;
+                ">
+                    <div class="modal-header" style="
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        padding: 20px;
+                        border-radius: 12px 12px 0 0;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    ">
+                        <h2 style="margin: 0; font-size: 20px; font-weight: 600;">
+                            <i class="fas fa-user-tie"></i> Candidate Application Details
+                        </h2>
+                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()" style="
+                            background: none;
+                            border: none;
+                            color: white;
+                            font-size: 20px;
+                            cursor: pointer;
+                            padding: 5px;
+                            border-radius: 4px;
+                        ">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
-                    <div class="modal-body">
-                        <div class="candidate-details-grid">
-                            <div class="detail-section">
-                                <h3>Election Information</h3>
-                                <div class="detail-row">
-                                    <strong>Election:</strong> ${election?.name || 'Unknown Election'}
-                                </div>
-                                <div class="detail-row">
-                                    <strong>Type:</strong> ${election?.election_type || 'N/A'}
-                                </div>
-                                <div class="detail-row">
-                                    <strong>Date:</strong> ${election?.election_date ? new Date(election.election_date).toLocaleDateString() : 'N/A'}
-                                </div>
+                    <div class="modal-body" style="padding: 20px;">
+                        <div class="candidate-details-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div class="detail-section" style="background: #f8fafc; padding: 16px; border-radius: 8px; border-left: 4px solid #667eea;">
+                                <h3 style="margin: 0 0 12px 0; color: #334155; font-size: 16px; font-weight: 600;">Election Information</h3>
+                                <div style="margin: 8px 0;"><strong>Election:</strong> ${election?.name || 'Unknown Election'}</div>
+                                <div style="margin: 8px 0;"><strong>Type:</strong> ${election?.election_type || 'N/A'}</div>
+                                <div style="margin: 8px 0;"><strong>Date:</strong> ${election?.election_date ? new Date(election.election_date).toLocaleDateString() : 'N/A'}</div>
                             </div>
 
-                            <div class="detail-section">
-                                <h3>Candidate Information</h3>
-                                <div class="detail-row">
-                                    <strong>Name:</strong> ${candidate.full_name}
-                                </div>
-                                <div class="detail-row">
-                                    <strong>Symbol:</strong> ${candidate.symbol || 'N/A'}
-                                </div>
-                                <div class="detail-row">
-                                    <strong>Party:</strong> ${candidate.party || 'Independent'}
-                                </div>
-                                <div class="detail-row">
-                                    <strong>Status:</strong> 
-                                    <span class="status-badge status-${candidate.status}">${candidate.status}</span>
-                                </div>
-                                <div class="detail-row">
-                                    <strong>Applied:</strong> ${new Date(candidate.application_date || Date.now()).toLocaleString()}
-                                </div>
+                            <div class="detail-section" style="background: #f8fafc; padding: 16px; border-radius: 8px; border-left: 4px solid #667eea;">
+                                <h3 style="margin: 0 0 12px 0; color: #334155; font-size: 16px; font-weight: 600;">Candidate Information</h3>
+                                <div style="margin: 8px 0;"><strong>Name:</strong> ${candidate.full_name}</div>
+                                <div style="margin: 8px 0;"><strong>Symbol:</strong> ${candidate.symbol || 'N/A'}</div>
+                                <div style="margin: 8px 0;"><strong>Party:</strong> ${candidate.party || 'Independent'}</div>
+                                <div style="margin: 8px 0;"><strong>Status:</strong> ${candidate.status}</div>
                             </div>
 
-                            <div class="detail-section">
-                                <h3>Voter Information</h3>
-                                <div class="detail-row">
-                                    <strong>Name:</strong> ${candidate.voter?.full_name || 'Unknown'}
-                                </div>
-                                <div class="detail-row">
-                                    <strong>Email:</strong> ${candidate.voter?.email || 'N/A'}
-                                </div>
-                                <div class="detail-row">
-                                    <strong>Phone:</strong> ${candidate.voter?.phone || 'N/A'}
-                                </div>
-                                ${candidate.voter?.address ? `
-                                    <div class="detail-row">
-                                        <strong>Address:</strong> ${candidate.voter.address}
-                                    </div>
-                                ` : ''}
+                            <div class="detail-section" style="background: #f8fafc; padding: 16px; border-radius: 8px; border-left: 4px solid #667eea; grid-column: 1 / -1;">
+                                <h3 style="margin: 0 0 12px 0; color: #334155; font-size: 16px; font-weight: 600;">Voter Information</h3>
+                                ${voter ? `
+                                    <div style="margin: 8px 0;"><strong>Name:</strong> ${voter.full_name}</div>
+                                    <div style="margin: 8px 0;"><strong>Email:</strong> ${voter.email || 'N/A'}</div>
+                                    <div style="margin: 8px 0;"><strong>Phone:</strong> ${voter.phone || 'N/A'}</div>
+                                ` : `
+                                    <div style="margin: 8px 0;"><strong>Applicant:</strong> ${candidate.full_name}</div>
+                                    <div style="margin: 8px 0;"><em>Detailed voter information not available</em></div>
+                                `}
                             </div>
 
                             ${candidate.bio ? `
-                                <div class="detail-section full-width">
-                                    <h3>Biography</h3>
-                                    <p class="detail-text">${candidate.bio}</p>
+                                <div class="detail-section" style="background: #f8fafc; padding: 16px; border-radius: 8px; border-left: 4px solid #667eea; grid-column: 1 / -1;">
+                                    <h3 style="margin: 0 0 12px 0; color: #334155; font-size: 16px; font-weight: 600;">Biography</h3>
+                                    <p style="color: #64748b; line-height: 1.6; margin: 0;">${candidate.bio}</p>
                                 </div>
                             ` : ''}
 
                             ${candidate.manifesto ? `
-                                <div class="detail-section full-width">
-                                    <h3>Election Manifesto</h3>
-                                    <p class="detail-text">${candidate.manifesto}</p>
-                                </div>
-                            ` : ''}
-
-                            ${candidate.photo_url ? `
-                                <div class="detail-section full-width">
-                                    <h3>Candidate Photo</h3>
-                                    <img src="${candidate.photo_url}" alt="Candidate Photo" style="max-width: 200px; border-radius: 8px;">
-                                </div>
-                            ` : ''}
-
-                            ${candidate.admin_notes ? `
-                                <div class="detail-section full-width">
-                                    <h3>Admin Notes</h3>
-                                    <p class="detail-text admin-notes">${candidate.admin_notes}</p>
+                                <div class="detail-section" style="background: #f8fafc; padding: 16px; border-radius: 8px; border-left: 4px solid #667eea; grid-column: 1 / -1;">
+                                    <h3 style="margin: 0 0 12px 0; color: #334155; font-size: 16px; font-weight: 600;">Election Manifesto</h3>
+                                    <p style="color: #64748b; line-height: 1.6; margin: 0;">${candidate.manifesto}</p>
                                 </div>
                             ` : ''}
                         </div>
                     </div>
-                    <div class="modal-footer">
+                    <div class="modal-footer" style="
+                        padding: 20px;
+                        border-top: 1px solid #e2e8f0;
+                        display: flex;
+                        gap: 10px;
+                        justify-content: center;
+                    ">
                         ${candidate.status === 'pending' ? `
-                            <button class="btn btn-success" onclick="window.Admin.reviewCandidate('${candidate.candidate_id}', 'approve'); this.closest('.modal-overlay').remove();">
+                            <button class="btn btn-success" onclick="window.Admin.reviewCandidate('${candidate.candidate_id}', 'approve'); this.closest('.modal-overlay').remove();" style="
+                                padding: 10px 20px;
+                                border-radius: 6px;
+                                font-weight: 500;
+                                cursor: pointer;
+                                background: #10b981;
+                                color: white;
+                                border: none;
+                            ">
                                 <i class="fas fa-check"></i> Approve
                             </button>
-                            <button class="btn btn-danger" onclick="window.Admin.reviewCandidate('${candidate.candidate_id}', 'reject'); this.closest('.modal-overlay').remove();">
+                            <button class="btn btn-danger" onclick="window.Admin.reviewCandidate('${candidate.candidate_id}', 'reject'); this.closest('.modal-overlay').remove();" style="
+                                padding: 10px 20px;
+                                border-radius: 6px;
+                                font-weight: 500;
+                                cursor: pointer;
+                                background: #ef4444;
+                                color: white;
+                                border: none;
+                            ">
                                 <i class="fas fa-times"></i> Reject
                             </button>
                         ` : ''}
-                        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Close</button>
+                        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()" style="
+                            padding: 10px 20px;
+                            border-radius: 6px;
+                            font-weight: 500;
+                            cursor: pointer;
+                            background: #6b7280;
+                            color: white;
+                            border: none;
+                        ">Close</button>
                     </div>
                 </div>
             `;
             
             document.body.appendChild(modal);
+            
+            // Add backdrop click to close
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
 
         } catch (error) {
             console.error('Error viewing candidate details:', error);
