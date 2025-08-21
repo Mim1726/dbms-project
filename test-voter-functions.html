@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Voter Functions</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { border: 1px solid #ccc; margin: 20px 0; padding: 15px; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d2e; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Test Voter Functions</h1>
+    
+    <div class="test-section">
+        <h2>Database Connection Test</h2>
+        <button onclick="testConnection()">Test Connection</button>
+        <div id="connectionResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Login</h2>
+        <input type="email" id="testEmail" placeholder="Email" value="john@example.com">
+        <input type="password" id="testPassword" placeholder="Password" value="pass1">
+        <button onclick="testLogin()">Test Login</button>
+        <div id="loginResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test My Votes Query</h2>
+        <button onclick="testMyVotesQuery()">Test My Votes</button>
+        <div id="votesResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Results Query</h2>
+        <button onclick="testResultsQuery()">Test Results</button>
+        <div id="resultsResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Simplified My Votes</h2>
+        <button onclick="testSimplifiedMyVotes()">Test Simplified My Votes</button>
+        <div id="simplifiedVotesResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Simplified Results</h2>
+        <button onclick="testSimplifiedResults()">Test Simplified Results</button>
+        <div id="simplifiedResultsResult" class="result"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/voter-patch.js"></script>
+    <script>
+        let currentUser = null;
+
+        async function testConnection() {
+            const resultDiv = document.getElementById('connectionResult');
+            try {
+                console.log('Testing connection with supabase:', supabase);
+                const { data, error } = await supabase.from('voter').select('count').limit(1);
+                if (error) throw error;
+                resultDiv.innerHTML = '<div class="success">✓ Connection successful!</div>';
+            } catch (error) {
+                console.error('Connection error:', error);
+                resultDiv.innerHTML = `<div class="error">✗ Connection failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testLogin() {
+            const resultDiv = document.getElementById('loginResult');
+            const email = document.getElementById('testEmail').value;
+            const password = document.getElementById('testPassword').value;
+            
+            try {
+                // First try to get voter by email
+                const { data: voters, error: voterError } = await supabase
+                    .from('voter')
+                    .select('*')
+                    .eq('email', email)
+                    .limit(1);
+
+                if (voterError) throw voterError;
+                
+                if (!voters || voters.length === 0) {
+                    throw new Error('No voter found with this email');
+                }
+
+                currentUser = voters[0];
+                console.log('Current user set to:', currentUser);
+                
+                resultDiv.innerHTML = `<div class="success">✓ Login successful! User: ${currentUser.full_name} (ID: ${currentUser.voter_id})</div>`;
+            } catch (error) {
+                console.error('Login error:', error);
+                resultDiv.innerHTML = `<div class="error">✗ Login failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testMyVotesQuery() {
+            const resultDiv = document.getElementById('votesResult');
+            
+            if (!currentUser) {
+                resultDiv.innerHTML = '<div class="error">Please login first!</div>';
+                return;
+            }
+
+            try {
+                console.log('Testing votes query for voter_id:', currentUser.voter_id);
+                
+                const { data: votes, error: votesError } = await supabase
+                    .from('vote')
+                    .select(`
+                        vote_id,
+                        vote_timestamp,
+                        contest:contest_id (
+                            contest_id,
+                            position,
+                            candidate:candidate_id (
+                                candidate_id,
+                                full_name,
+                                party,
+                                symbol
+                            ),
+                            election:election_id (
+                                election_id,
+                                name,
+                                election_date,
+                                election_type
+                            )
+                        )
+                    `)
+                    .eq('voter_id', currentUser.voter_id)
+                    .order('vote_timestamp', { ascending: false });
+
+                console.log('Votes query result:', { votes, votesError });
+
+                if (votesError) throw votesError;
+
+                resultDiv.innerHTML = `<div class="success">✓ Query successful! Found ${votes ? votes.length : 0} votes</div>
+                    <pre>${JSON.stringify(votes, null, 2)}</pre>`;
+            } catch (error) {
+                console.error('Votes query error:', error);
+                resultDiv.innerHTML = `<div class="error">✗ Votes query failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testResultsQuery() {
+            const resultDiv = document.getElementById('resultsResult');
+            
+            try {
+                console.log('Testing results query...');
+                
+                // Get elections
+                const { data: elections, error: electionsError } = await supabase
+                    .from('election')
+                    .select(`
+                        election_id,
+                        name,
+                        election_type,
+                        election_date,
+                        is_active,
+                        description
+                    `)
+                    .eq('is_active', 'Y')
+                    .order('election_date', { ascending: false });
+
+                console.log('Elections query result:', { elections, electionsError });
+
+                if (electionsError) throw electionsError;
+
+                let results = `Elections found: ${elections ? elections.length : 0}\n\n`;
+
+                if (elections && elections.length > 0) {
+                    for (const election of elections.slice(0, 1)) { // Test just first election
+                        results += `Election: ${election.name}\n`;
+                        
+                        // Get candidates
+                        const { data: candidates, error: candidatesError } = await supabase
+                            .from('candidate')
+                            .select(`candidate_id, full_name, party, symbol`)
+                            .eq('election_id', election.election_id)
+                            .eq('status', 'approved');
+
+                        if (candidatesError) {
+                            results += `  Candidates error: ${candidatesError.message}\n`;
+                            continue;
+                        }
+
+                        results += `  Candidates: ${candidates ? candidates.length : 0}\n`;
+
+                        if (candidates && candidates.length > 0) {
+                            for (const candidate of candidates) {
+                                // Get contest for this candidate
+                                const { data: contests, error: contestError } = await supabase
+                                    .from('contest')
+                                    .select('contest_id')
+                                    .eq('election_id', election.election_id)
+                                    .eq('candidate_id', candidate.candidate_id);
+
+                                if (contestError) {
+                                    results += `    Contest error for ${candidate.full_name}: ${contestError.message}\n`;
+                                    continue;
+                                }
+
+                                let voteCount = 0;
+                                if (contests && contests.length > 0) {
+                                    const { count, error: voteError } = await supabase
+                                        .from('vote')
+                                        .select('*', { count: 'exact' })
+                                        .eq('contest_id', contests[0].contest_id);
+                                    
+                                    if (voteError) {
+                                        results += `    Vote count error for ${candidate.full_name}: ${voteError.message}\n`;
+                                    } else {
+                                        voteCount = count || 0;
+                                    }
+                                }
+
+                                results += `    ${candidate.symbol} ${candidate.full_name}: ${voteCount} votes\n`;
+                            }
+                        }
+                    }
+                }
+
+                resultDiv.innerHTML = `<div class="success">✓ Results query successful!</div>
+                    <pre>${results}</pre>`;
+            } catch (error) {
+                console.error('Results query error:', error);
+                resultDiv.innerHTML = `<div class="error">✗ Results query failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testSimplifiedMyVotes() {
+            const resultDiv = document.getElementById('simplifiedVotesResult');
+            
+            if (!currentUser) {
+                resultDiv.innerHTML = '<div class="error">Please login first!</div>';
+                return;
+            }
+
+            try {
+                // Create a mock Auth object
+                const mockAuth = {
+                    currentUser: currentUser,
+                    showMyVotesSimple: Auth.prototype.showMyVotesSimple
+                };
+
+                // Create a mock voterContent div
+                const mockDiv = document.createElement('div');
+                mockDiv.id = 'voterContent';
+                
+                await mockAuth.showMyVotesSimple();
+                
+                resultDiv.innerHTML = `<div class="success">✓ Simplified My Votes function executed</div>
+                    <div>Check console for detailed output</div>`;
+            } catch (error) {
+                console.error('Simplified votes error:', error);
+                resultDiv.innerHTML = `<div class="error">✗ Simplified votes failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testSimplifiedResults() {
+            const resultDiv = document.getElementById('simplifiedResultsResult');
+            
+            try {
+                // Create a mock Auth object
+                const mockAuth = {
+                    loadVoterResultsSimple: Auth.prototype.loadVoterResultsSimple
+                };
+
+                // Create a mock container div
+                const mockContainer = document.createElement('div');
+                
+                await mockAuth.loadVoterResultsSimple(mockContainer);
+                
+                resultDiv.innerHTML = `<div class="success">✓ Simplified Results function executed</div>
+                    <div>Generated HTML length: ${mockContainer.innerHTML.length} characters</div>
+                    <div>Check console for detailed output</div>`;
+            } catch (error) {
+                console.error('Simplified results error:', error);
+                resultDiv.innerHTML = `<div class="error">✗ Simplified results failed: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

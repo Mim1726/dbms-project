@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Candidate Application System</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { border: 1px solid #ccc; margin: 20px 0; padding: 15px; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d2e; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .user-info { background: #e3f2fd; padding: 10px; border-radius: 4px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Test Candidate Application System</h1>
+    
+    <div class="test-section">
+        <h2>Login as Voter</h2>
+        <input type="email" id="voterEmail" placeholder="Email" value="john@example.com">
+        <input type="password" id="voterPassword" placeholder="Password" value="pass1">
+        <button onclick="loginAsVoter()">Login as Voter</button>
+        <div id="voterLoginResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Candidate Application</h2>
+        <button onclick="testCandidateApplication()" disabled id="applyBtn">Apply as Candidate</button>
+        <div id="applicationResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Login as Admin</h2>
+        <input type="email" id="adminEmail" placeholder="Email" value="mimrobo1726@gmail.com">
+        <input type="password" id="adminPassword" placeholder="Password" value="alien">
+        <button onclick="loginAsAdmin()">Login as Admin</button>
+        <div id="adminLoginResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Admin Review</h2>
+        <button onclick="testAdminReview()" disabled id="reviewBtn">Review Applications</button>
+        <div id="reviewResult" class="result"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script>
+        let currentVoter = null;
+        let currentAdmin = null;
+        let testApplicationId = null;
+
+        async function loginAsVoter() {
+            const resultDiv = document.getElementById('voterLoginResult');
+            const email = document.getElementById('voterEmail').value;
+            const password = document.getElementById('voterPassword').value;
+            
+            try {
+                const { data: voters, error } = await supabase
+                    .from('voter')
+                    .select('*')
+                    .eq('email', email)
+                    .limit(1);
+
+                if (error) throw error;
+                
+                if (!voters || voters.length === 0) {
+                    throw new Error('No voter found with this email');
+                }
+
+                currentVoter = voters[0];
+                console.log('Logged in as voter:', currentVoter);
+                
+                resultDiv.innerHTML = `<div class="success">✓ Logged in as voter: ${currentVoter.full_name} (ID: ${currentVoter.voter_id})</div>`;
+                
+                // Enable apply button
+                document.getElementById('applyBtn').disabled = false;
+            } catch (error) {
+                console.error('Voter login error:', error);
+                resultDiv.innerHTML = `<div class="error">✗ Login failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testCandidateApplication() {
+            const resultDiv = document.getElementById('applicationResult');
+            
+            if (!currentVoter) {
+                resultDiv.innerHTML = '<div class="error">Please login as voter first!</div>';
+                return;
+            }
+
+            try {
+                // Get an available election
+                const { data: elections, error: electionsError } = await supabase
+                    .from('election')
+                    .select('election_id, name')
+                    .eq('is_active', 'Y')
+                    .limit(1);
+
+                if (electionsError) throw electionsError;
+                
+                if (!elections || elections.length === 0) {
+                    throw new Error('No active elections found');
+                }
+
+                const election = elections[0];
+                
+                // Submit test application
+                const { data, error } = await supabase
+                    .from('candidate')
+                    .insert({
+                        election_id: election.election_id,
+                        voter_id: currentVoter.voter_id,
+                        full_name: currentVoter.full_name,
+                        symbol: '🧪',
+                        party: 'Test Party',
+                        bio: 'This is a test candidate application submitted via the test system.',
+                        manifesto: 'My manifesto is to ensure the candidate application system works correctly.',
+                        status: 'pending',
+                        application_date: new Date().toISOString()
+                    })
+                    .select();
+
+                if (error) throw error;
+
+                testApplicationId = data[0].candidate_id;
+                
+                resultDiv.innerHTML = `<div class="success">✓ Application submitted successfully!<br>
+                    Election: ${election.name}<br>
+                    Application ID: ${testApplicationId}<br>
+                    Status: Pending</div>`;
+                
+            } catch (error) {
+                console.error('Application error:', error);
+                resultDiv.innerHTML = `<div class="error">✗ Application failed: ${error.message}</div>`;
+            }
+        }
+
+        async function loginAsAdmin() {
+            const resultDiv = document.getElementById('adminLoginResult');
+            const email = document.getElementById('adminEmail').value;
+            const password = document.getElementById('adminPassword').value;
+            
+            try {
+                const { data: admins, error } = await supabase
+                    .from('admin')
+                    .select('*')
+                    .eq('email', email)
+                    .limit(1);
+
+                if (error) throw error;
+                
+                if (!admins || admins.length === 0) {
+                    throw new Error('No admin found with this email');
+                }
+
+                currentAdmin = admins[0];
+                console.log('Logged in as admin:', currentAdmin);
+                
+                resultDiv.innerHTML = `<div class="success">✓ Logged in as admin: ${currentAdmin.full_name} (ID: ${currentAdmin.admin_id})</div>`;
+                
+                // Enable review button
+                document.getElementById('reviewBtn').disabled = false;
+            } catch (error) {
+                console.error('Admin login error:', error);
+                resultDiv.innerHTML = `<div class="error">✗ Login failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testAdminReview() {
+            const resultDiv = document.getElementById('reviewResult');
+            
+            if (!currentAdmin) {
+                resultDiv.innerHTML = '<div class="error">Please login as admin first!</div>';
+                return;
+            }
+
+            try {
+                // Get pending applications
+                const { data: applications, error } = await supabase
+                    .from('candidate')
+                    .select(`
+                        *,
+                        voter:voter_id (full_name, email),
+                        election:election_id (name)
+                    `)
+                    .eq('status', 'pending')
+                    .order('application_date', { ascending: false });
+
+                if (error) throw error;
+
+                let content = `<div class="success">✓ Admin review test completed!</div>`;
+                content += `<div class="user-info">Found ${applications.length} pending applications:</div>`;
+
+                if (applications.length > 0) {
+                    applications.forEach(app => {
+                        content += `
+                            <div class="user-info">
+                                <strong>Application ID:</strong> ${app.candidate_id}<br>
+                                <strong>Voter:</strong> ${app.voter?.full_name} (${app.voter?.email})<br>
+                                <strong>Election:</strong> ${app.election?.name}<br>
+                                <strong>Symbol:</strong> ${app.symbol}<br>
+                                <strong>Party:</strong> ${app.party}<br>
+                                <strong>Applied:</strong> ${new Date(app.application_date || app.created_at).toLocaleString()}<br>
+                                <button onclick="approveApplication(${app.candidate_id})">Approve</button>
+                                <button onclick="rejectApplication(${app.candidate_id})">Reject</button>
+                            </div>
+                        `;
+                    });
+                } else {
+                    content += '<div class="user-info">No pending applications found.</div>';
+                }
+
+                resultDiv.innerHTML = content;
+                
+            } catch (error) {
+                console.error('Review error:', error);
+                resultDiv.innerHTML = `<div class="error">✗ Review failed: ${error.message}</div>`;
+            }
+        }
+
+        async function approveApplication(candidateId) {
+            try {
+                // Update status to approved
+                const { error } = await supabase
+                    .from('candidate')
+                    .update({ status: 'approved' })
+                    .eq('candidate_id', candidateId);
+
+                if (error) throw error;
+
+                // Get candidate info for contest creation
+                const { data: candidate, error: candidateError } = await supabase
+                    .from('candidate')
+                    .select('election_id, candidate_id')
+                    .eq('candidate_id', candidateId)
+                    .single();
+
+                if (candidateError) throw candidateError;
+
+                // Create contest entry
+                const { error: contestError } = await supabase
+                    .from('contest')
+                    .insert({
+                        election_id: candidate.election_id,
+                        candidate_id: candidate.candidate_id,
+                        position: 'Candidate'
+                    });
+
+                if (contestError) {
+                    console.error('Contest creation error:', contestError);
+                }
+
+                alert('Application approved successfully!');
+                testAdminReview(); // Refresh the list
+                
+            } catch (error) {
+                console.error('Approval error:', error);
+                alert('Approval failed: ' + error.message);
+            }
+        }
+
+        async function rejectApplication(candidateId) {
+            try {
+                const reason = prompt('Please provide a reason for rejection:');
+                if (reason === null) return; // User cancelled
+
+                const { error } = await supabase
+                    .from('candidate')
+                    .update({ 
+                        status: 'rejected',
+                        admin_notes: reason 
+                    })
+                    .eq('candidate_id', candidateId);
+
+                if (error) throw error;
+
+                alert('Application rejected successfully!');
+                testAdminReview(); // Refresh the list
+                
+            } catch (error) {
+                console.error('Rejection error:', error);
+                alert('Rejection failed: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

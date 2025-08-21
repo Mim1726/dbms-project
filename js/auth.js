@@ -1119,9 +1119,13 @@ class Auth {
 
     // Show voter's voting history
     async showMyVotes() {
+        console.log('showMyVotes called for user:', this.currentUser);
         try {
             const voterContent = document.getElementById('voterContent');
-            if (!voterContent) return;
+            if (!voterContent) {
+                console.error('voterContent element not found');
+                return;
+            }
 
             // Show loading state
             voterContent.innerHTML = `
@@ -1133,29 +1137,35 @@ class Auth {
                 </div>
             `;
 
+            console.log('Fetching votes for voter_id:', this.currentUser.voter_id);
+
             // Get voter's votes with detailed information
             const { data: votes, error: votesError } = await supabase
                 .from('vote')
                 .select(`
                     vote_id,
                     vote_timestamp,
-                    candidate:candidate_id (
-                        candidate_id,
-                        full_name,
-                        party_name,
-                        contest:contest_id (
-                            contest_id,
-                            contest_name,
-                            election:election_id (
-                                election_id,
-                                election_name,
-                                election_date
-                            )
+                    contest:contest_id (
+                        contest_id,
+                        position,
+                        candidate:candidate_id (
+                            candidate_id,
+                            full_name,
+                            party,
+                            symbol
+                        ),
+                        election:election_id (
+                            election_id,
+                            name,
+                            election_date,
+                            election_type
                         )
                     )
                 `)
                 .eq('voter_id', this.currentUser.voter_id)
                 .order('vote_timestamp', { ascending: false });
+
+            console.log('Votes query result:', { votes, votesError });
 
             if (votesError) {
                 console.error('Error loading votes:', votesError);
@@ -1165,7 +1175,7 @@ class Auth {
                     </div>
                     <div class="error-message">
                         <i class="fas fa-exclamation-triangle"></i>
-                        Error loading voting history. Please try again.
+                        Error loading voting history: ${votesError.message}. Please try again.
                     </div>
                 `;
                 return;
@@ -1191,14 +1201,14 @@ class Auth {
 
             // Build votes display
             const votesHtml = votes.map(vote => {
-                const candidate = vote.candidate;
-                const contest = candidate?.contest;
+                const contest = vote.contest;
+                const candidate = contest?.candidate;
                 const election = contest?.election;
                 
                 return `
                     <div class="vote-card">
                         <div class="vote-header">
-                            <h4>${election?.election_name || 'Unknown Election'}</h4>
+                            <h4>${election?.name || 'Unknown Election'}</h4>
                             <span class="vote-date">
                                 <i class="fas fa-calendar"></i>
                                 ${new Date(vote.vote_timestamp).toLocaleDateString()}
@@ -1206,16 +1216,16 @@ class Auth {
                         </div>
                         <div class="vote-details">
                             <div class="vote-info">
-                                <label>Contest:</label>
-                                <span>${contest?.contest_name || 'Unknown Contest'}</span>
+                                <label>Position:</label>
+                                <span>${contest?.position || 'Candidate'}</span>
                             </div>
                             <div class="vote-info">
                                 <label>Candidate:</label>
-                                <span>${candidate?.full_name || 'Unknown Candidate'}</span>
+                                <span>${candidate?.symbol} ${candidate?.full_name || 'Unknown Candidate'}</span>
                             </div>
                             <div class="vote-info">
                                 <label>Party:</label>
-                                <span>${candidate?.party_name || 'Independent'}</span>
+                                <span>${candidate?.party || 'Independent'}</span>
                             </div>
                             <div class="vote-info">
                                 <label>Vote Time:</label>
@@ -1255,6 +1265,180 @@ class Auth {
                     </div>
                 `;
             }
+        }
+    }
+
+    // Load voter results (fallback method)
+    async loadVoterResults(container) {
+        try {
+            console.log('loadVoterResults called, container:', container);
+            
+            // Show loading
+            container.innerHTML = `
+                <div class="section-header">
+                    <h2><i class="fas fa-chart-pie"></i> Election Results</h2>
+                    <p>View results of completed elections</p>
+                </div>
+                <div class="loading-message">
+                    <i class="fas fa-spinner fa-spin"></i> Loading results...
+                </div>
+            `;
+
+            // Get elections that have results
+            const { data: elections, error: electionsError } = await supabase
+                .from('election')
+                .select(`
+                    election_id,
+                    name,
+                    election_type,
+                    election_date,
+                    is_active,
+                    description
+                `)
+                .eq('is_active', 'Y')
+                .order('election_date', { ascending: false });
+
+            console.log('Elections query result:', { elections, electionsError });
+
+            if (electionsError) {
+                console.error('Elections error:', electionsError);
+                throw electionsError;
+            }
+
+            if (!elections || elections.length === 0) {
+                container.innerHTML = `
+                    <div class="section-header">
+                        <h2><i class="fas fa-chart-pie"></i> Election Results</h2>
+                        <p>View results of completed elections</p>
+                    </div>
+                    <div class="empty-state">
+                        <i class="fas fa-chart-bar"></i>
+                        <h3>No Elections Available</h3>
+                        <p>There are no elections with published results at this time.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Get results for each election
+            let resultsHTML = '';
+            for (const election of elections) {
+                const { data: candidates, error: candidatesError } = await supabase
+                    .from('candidate')
+                    .select(`
+                        candidate_id,
+                        full_name,
+                        party,
+                        symbol
+                    `)
+                    .eq('election_id', election.election_id)
+                    .eq('status', 'approved');
+
+                if (candidatesError) {
+                    console.error('Error loading candidates:', candidatesError);
+                    continue;
+                }
+
+                // Get vote counts for each candidate through contest table
+                let candidateResults = [];
+                if (candidates && candidates.length > 0) {
+                    for (const candidate of candidates) {
+                        // Get contest for this candidate in this election
+                        const { data: contests, error: contestError } = await supabase
+                            .from('contest')
+                            .select('contest_id')
+                            .eq('election_id', election.election_id)
+                            .eq('candidate_id', candidate.candidate_id);
+
+                        let voteCount = 0;
+                        if (contests && contests.length > 0) {
+                            // Get vote count for this contest
+                            const { count, error: voteError } = await supabase
+                                .from('vote')
+                                .select('*', { count: 'exact' })
+                                .eq('contest_id', contests[0].contest_id);
+                            
+                            voteCount = count || 0;
+                        }
+
+                        candidateResults.push({
+                            ...candidate,
+                            vote_count: voteCount
+                        });
+                    }
+
+                    // Sort by vote count (highest first)
+                    candidateResults.sort((a, b) => b.vote_count - a.vote_count);
+                }
+
+                const totalVotes = candidateResults.reduce((sum, candidate) => sum + candidate.vote_count, 0);
+
+                resultsHTML += `
+                    <div class="election-result-card">
+                        <div class="election-header">
+                            <h3>${election.name}</h3>
+                            <div class="election-meta">
+                                <span class="election-type">${election.election_type}</span>
+                                <span class="election-date">${new Date(election.election_date).toLocaleDateString()}</span>
+                                <span class="total-votes">Total Votes: ${totalVotes}</span>
+                            </div>
+                        </div>
+                        
+                        ${candidateResults.length > 0 ? `
+                            <div class="candidates-results">
+                                ${candidateResults.map((candidate, index) => {
+                                    const percentage = totalVotes > 0 ? ((candidate.vote_count / totalVotes) * 100).toFixed(1) : 0;
+                                    return `
+                                        <div class="candidate-result ${index === 0 && candidate.vote_count > 0 ? 'winner' : ''}">
+                                            <div class="candidate-info">
+                                                <div class="rank">#${index + 1}</div>
+                                                <div class="candidate-details">
+                                                    <h4>${candidate.symbol} ${candidate.full_name}</h4>
+                                                    <p>${candidate.party || 'Independent'}</p>
+                                                </div>
+                                                <div class="vote-stats">
+                                                    <span class="vote-count">${candidate.vote_count} votes</span>
+                                                    <span class="vote-percentage">${percentage}%</span>
+                                                </div>
+                                            </div>
+                                            <div class="vote-bar">
+                                                <div class="vote-fill" style="width: ${percentage}%"></div>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        ` : `
+                            <div class="no-results">
+                                <p>No votes cast for this election yet.</p>
+                            </div>
+                        `}
+                    </div>
+                `;
+            }
+
+            container.innerHTML = `
+                <div class="section-header">
+                    <h2><i class="fas fa-chart-pie"></i> Election Results</h2>
+                    <p>View results of completed elections</p>
+                </div>
+                <div class="results-container">
+                    ${resultsHTML}
+                </div>
+            `;
+
+        } catch (error) {
+            console.error('Error loading voter results:', error);
+            container.innerHTML = `
+                <div class="section-header">
+                    <h2><i class="fas fa-chart-pie"></i> Election Results</h2>
+                    <p>View results of completed elections</p>
+                </div>
+                <div class="error-message">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Error loading results. Please try again.
+                </div>
+            `;
         }
     }
 }
@@ -1727,19 +1911,63 @@ function showDashboardSection(section) {
                 }
             } else {
                 // Show results section for voters
+                document.getElementById('mainContent').style.display = 'block';
+                document.getElementById('voterDashboard').style.display = 'none';
+                
                 const resultsSection = document.getElementById('results');
                 if (resultsSection) {
+                    // Hide other sections
+                    document.querySelectorAll('#mainContent .section').forEach(section => {
+                        section.style.display = 'none';
+                        section.classList.remove('active');
+                    });
+                    
+                    // Show results section
                     resultsSection.style.display = 'block';
                     resultsSection.classList.add('active');
+                    
                     if (window.Elections) {
                         window.Elections.loadResults();
+                    } else {
+                        // Fallback: load results manually if Elections module not available
+                        if (window.Auth.loadVoterResultsSimple) {
+                            window.Auth.loadVoterResultsSimple(resultsSection);
+                        } else {
+                            window.Auth.loadVoterResults(resultsSection);
+                        }
                     }
                 }
             }
             break;
         case 'my-votes':
             // Show voter's voting history
-            window.Auth.showMyVotes();
+            if (userType === 'voter') {
+                // Show voter dashboard
+                document.getElementById('voterDashboard').style.display = 'block';
+                document.getElementById('mainContent').style.display = 'none';
+                
+                // Get the voter content container
+                const voterContent = document.getElementById('voterContent');
+                if (voterContent && window.Auth) {
+                    // Use simplified version if available, fallback to original
+                    if (window.Auth.showMyVotesSimple) {
+                        window.Auth.showMyVotesSimple();
+                    } else {
+                        window.Auth.showMyVotes();
+                    }
+                }
+            }
+            break;
+        case 'apply-candidate':
+            // Redirect to elections section where candidate application is now available
+            if (userType === 'voter') {
+                // Redirect to elections section
+                showDashboardSection('elections');
+                // Show message about new location
+                setTimeout(() => {
+                    Utils.showToast('Candidate applications are now available when viewing upcoming elections', 'info');
+                }, 500);
+            }
             break;
     }
 }

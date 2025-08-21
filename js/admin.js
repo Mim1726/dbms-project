@@ -896,7 +896,7 @@ class Admin {
         try {
             Utils.showLoading();
             
-            // Get all candidates first
+            // Get all candidates first (without voter relationship for now)
             const { data: candidates, error: candidatesError } = await supabase
                 .from('candidate')
                 .select('*')
@@ -904,111 +904,139 @@ class Admin {
 
             if (candidatesError) throw candidatesError;
 
-            // Get all contests to determine approval status
-            const { data: contests, error: contestsError } = await supabase
-                .from('contest')
-                .select(`
-                    candidate_id,
-                    election_id,
-                    position,
-                    election(name, election_type)
-                `);
+            // Get elections data
+            const { data: elections, error: electionsError } = await supabase
+                .from('election')
+                .select('election_id, name, election_type');
 
-            if (contestsError) throw contestsError;
+            if (electionsError) throw electionsError;
 
-            // Create a map of candidate_id to contest info
-            const contestMap = {};
-            contests?.forEach(contest => {
-                if (!contestMap[contest.candidate_id]) {
-                    contestMap[contest.candidate_id] = [];
-                }
-                contestMap[contest.candidate_id].push(contest);
+            // Create election lookup map
+            const electionMap = {};
+            elections?.forEach(election => {
+                electionMap[election.election_id] = election;
             });
 
-            // Add contest info to candidates
-            const candidatesWithStatus = candidates.map(candidate => ({
-                ...candidate,
-                contest: contestMap[candidate.candidate_id] || []
-            }));
+            // Get voter information for candidates that have applied_by_voter_id
+            let voterMap = {};
+            const candidatesWithVoterId = candidates.filter(c => c.applied_by_voter_id);
+            if (candidatesWithVoterId.length > 0) {
+                const voterIds = [...new Set(candidatesWithVoterId.map(c => c.applied_by_voter_id))];
+                const { data: voters } = await supabase
+                    .from('voter')
+                    .select('voter_id, full_name, email, phone')
+                    .in('voter_id', voterIds);
 
-            // Separate candidates into pending and approved
-            const pendingCandidates = candidatesWithStatus.filter(candidate => candidate.contest.length === 0);
-            const approvedCandidates = candidatesWithStatus.filter(candidate => candidate.contest.length > 0);
+                if (voters) {
+                    voters.forEach(voter => {
+                        voterMap[voter.voter_id] = voter;
+                    });
+                }
+            }
 
-            // Group approved candidates by election
+            // Separate candidates by status, default to 'pending' if status is null
+            const pendingCandidates = candidates.filter(candidate => (candidate.status || 'pending') === 'pending');
+            const approvedCandidates = candidates.filter(candidate => candidate.status === 'approved');
+            const rejectedCandidates = candidates.filter(candidate => candidate.status === 'rejected');
+
+            // Group approved candidates by election for the approved section
             const candidatesByElection = {};
             approvedCandidates.forEach(candidate => {
-                if (candidate.contest && candidate.contest.length > 0) {
-                    const contest = candidate.contest[0]; // Take first contest if multiple
-                    const electionId = contest.election_id;
-                    const electionName = contest.election?.name || 'Unknown Election';
-                    
-                    if (!candidatesByElection[electionId]) {
-                        candidatesByElection[electionId] = {
-                            name: electionName,
-                            candidates: []
-                        };
-                    }
-                    candidatesByElection[electionId].candidates.push(candidate);
+                const electionId = candidate.election_id;
+                const election = electionMap[electionId];
+                
+                if (!candidatesByElection[electionId]) {
+                    candidatesByElection[electionId] = {
+                        name: election?.name || 'Unknown Election',
+                        candidates: []
+                    };
                 }
+                
+                candidatesByElection[electionId].candidates.push({
+                    ...candidate,
+                    contest: [] // Placeholder for contest data
+                });
             });
 
             container.innerHTML = `
                 <div class="admin-section">
                     <div class="section-header">
-                        <h3>Candidates Management</h3>
+                        <h3>Candidate Applications Management</h3>
                         <div class="candidate-tabs">
                             <button class="candidate-tab-btn active" onclick="window.Admin.showCandidateTab('pending')">
-                                Pending Approval (${pendingCandidates.length})
+                                Pending Applications (${pendingCandidates.length})
                             </button>
                             <button class="candidate-tab-btn" onclick="window.Admin.showCandidateTab('approved')">
                                 Approved Candidates (${approvedCandidates.length})
                             </button>
+                            <button class="candidate-tab-btn" onclick="window.Admin.showCandidateTab('rejected')">
+                                Rejected Applications (${rejectedCandidates.length})
+                            </button>
                         </div>
                     </div>
                     
-                    <!-- Pending Candidates Section -->
+                    <!-- Pending Applications Section -->
                     <div id="pendingCandidates" class="candidate-section">
                         <div class="section-subtitle">
-                            <h4>Candidates Awaiting Approval</h4>
-                            <p>Review and approve new candidate applications</p>
+                            <h4>Candidate Applications Awaiting Review</h4>
+                            <p>Review and approve/reject new candidate applications from voters</p>
                         </div>
                         
                         <div class="candidates-grid">
                             ${pendingCandidates.length > 0 ? 
-                                pendingCandidates.map(candidate => `
-                                    <div class="candidate-card pending">
-                                        <div class="candidate-header">
-                                            <h4>${Utils.sanitizeHtml(candidate.full_name)}</h4>
-                                            <span class="status-badge status-warning">
-                                                Pending Approval
-                                            </span>
+                                pendingCandidates.map(candidate => {
+                                    const election = electionMap[candidate.election_id];
+                                    const voter = voterMap[candidate.applied_by_voter_id];
+                                    return `
+                                        <div class="candidate-card pending">
+                                            <div class="candidate-header">
+                                                <div class="candidate-title">
+                                                    <h4>${Utils.sanitizeHtml(candidate.full_name)}</h4>
+                                                    <span class="election-name">${election?.name || 'Unknown Election'}</span>
+                                                </div>
+                                                <span class="status-badge status-warning">
+                                                    ${candidate.applied_by_voter_id ? 'Pending Review' : 'Pending Approval'}
+                                                </span>
+                                            </div>
+                                            
+                                            <div class="candidate-details">
+                                                ${voter ? `
+                                                    <div class="detail-row">
+                                                        <strong>Applicant:</strong> ${voter.full_name} (${voter.email})
+                                                    </div>
+                                                ` : candidate.applied_by_voter_id ? `
+                                                    <div class="detail-row">
+                                                        <strong>Applied by:</strong> Voter ID ${candidate.applied_by_voter_id}
+                                                    </div>
+                                                ` : ''}
+                                                <div class="detail-row">
+                                                    <strong>Symbol:</strong> ${Utils.sanitizeHtml(candidate.symbol || 'N/A')}
+                                                    <strong>Party:</strong> ${Utils.sanitizeHtml(candidate.party || 'Independent')}
+                                                </div>
+                                                <div class="detail-row">
+                                                    <strong>Applied:</strong> ${new Date().toLocaleDateString()}
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="candidate-actions">
+                                                <button class="btn btn-small btn-success" onclick="window.Admin.reviewCandidate('${candidate.candidate_id}', 'approve')">
+                                                    <i class="fas fa-check"></i> Approve
+                                                </button>
+                                                <button class="btn btn-small btn-outline" onclick="window.Admin.viewCandidateDetails('${candidate.candidate_id}')">
+                                                    <i class="fas fa-eye"></i> Full Details
+                                                </button>
+                                                <button class="btn btn-small btn-danger" onclick="window.Admin.reviewCandidate('${candidate.candidate_id}', 'reject')">
+                                                    <i class="fas fa-times"></i> Reject
+                                                </button>
+                                            </div>
                                         </div>
-                                        
-                                        <div class="candidate-details">
-                                            <p><strong>Party:</strong> ${Utils.sanitizeHtml(candidate.party || 'Independent')}</p>
-                                            <p><strong>Symbol:</strong> ${Utils.sanitizeHtml(candidate.symbol || 'N/A')}</p>
-                                            ${candidate.manifesto ? `<p><strong>Manifesto:</strong> ${Utils.sanitizeHtml(candidate.manifesto.substring(0, 100))}${candidate.manifesto.length > 100 ? '...' : ''}</p>` : ''}
-                                        </div>
-                                        
-                                        <div class="candidate-actions">
-                                            <button class="btn btn-small btn-success" onclick="window.Admin.approveCandidate('${candidate.candidate_id}')">
-                                                <i class="fas fa-check"></i> Approve
-                                            </button>
-                                            <button class="btn btn-small btn-outline" onclick="window.Admin.viewCandidate('${candidate.candidate_id}')">
-                                                <i class="fas fa-eye"></i> View Details
-                                            </button>
-                                            <button class="btn btn-small btn-danger" onclick="window.Admin.deleteCandidate('${candidate.candidate_id}')">
-                                                <i class="fas fa-trash"></i> Delete
-                                            </button>
-                                        </div>
-                                    </div>
-                                `).join('') 
+                                    `;
+                                }).join('') 
                             : `
                                 <div class="no-candidates">
                                     <i class="fas fa-user-check" style="font-size: 48px; color: #10b981; margin-bottom: 20px;"></i>
                                     <h4>All Caught Up!</h4>
-                                    <p>No candidates are waiting for approval.</p>
+                                    <p>No candidate applications are waiting for review.</p>
                                 </div>
                             `}
                         </div>
@@ -1096,28 +1124,255 @@ class Admin {
         }
     }
 
-    // Show candidate tab (pending or approved)
+    // Show candidate tab (pending, approved, or rejected)
     showCandidateTab(tabType) {
         const pendingSection = document.getElementById('pendingCandidates');
         const approvedSection = document.getElementById('approvedCandidates');
+        const rejectedSection = document.getElementById('rejectedCandidates');
         const tabs = document.querySelectorAll('.candidate-tab-btn');
         
         // Update tab styling
         tabs.forEach(tab => {
             tab.classList.remove('active');
             if ((tabType === 'pending' && tab.textContent.includes('Pending')) ||
-                (tabType === 'approved' && tab.textContent.includes('Approved'))) {
+                (tabType === 'approved' && tab.textContent.includes('Approved')) ||
+                (tabType === 'rejected' && tab.textContent.includes('Rejected'))) {
                 tab.classList.add('active');
             }
         });
         
         // Show/hide sections
-        if (tabType === 'pending') {
-            pendingSection.style.display = 'block';
-            approvedSection.style.display = 'none';
-        } else {
-            pendingSection.style.display = 'none';
-            approvedSection.style.display = 'block';
+        if (pendingSection) pendingSection.style.display = tabType === 'pending' ? 'block' : 'none';
+        if (approvedSection) approvedSection.style.display = tabType === 'approved' ? 'block' : 'none';
+        if (rejectedSection) rejectedSection.style.display = tabType === 'rejected' ? 'block' : 'none';
+    }
+
+    // Review candidate application (approve or reject)
+    async reviewCandidate(candidateId, action) {
+        try {
+            if (!candidateId || !action) {
+                throw new Error('Invalid parameters');
+            }
+
+            const isApprove = action === 'approve';
+            const actionText = isApprove ? 'approve' : 'reject';
+            
+            // Get admin notes if rejecting
+            let adminNotes = '';
+            if (!isApprove) {
+                adminNotes = prompt(`Please provide a reason for rejecting this application:`);
+                if (adminNotes === null) {
+                    return; // User cancelled
+                }
+            }
+
+            const confirmed = confirm(`Are you sure you want to ${actionText} this candidate application?`);
+            if (!confirmed) return;
+
+            Utils.showLoading();
+
+            // Update candidate status
+            const updateData = {
+                status: isApprove ? 'approved' : 'rejected'
+            };
+
+            if (adminNotes) {
+                updateData.admin_notes = adminNotes;
+            }
+
+            const { error } = await supabase
+                .from('candidate')
+                .update(updateData)
+                .eq('candidate_id', candidateId);
+
+            if (error) throw error;
+
+            // If approving, create contest entry
+            if (isApprove) {
+                // Get candidate info
+                const { data: candidate, error: candidateError } = await supabase
+                    .from('candidate')
+                    .select('election_id, candidate_id, full_name')
+                    .eq('candidate_id', candidateId)
+                    .single();
+
+                if (candidateError) throw candidateError;
+
+                // Create contest entry
+                const { error: contestError } = await supabase
+                    .from('contest')
+                    .insert({
+                        election_id: candidate.election_id,
+                        candidate_id: candidate.candidate_id,
+                        position: 'Candidate'
+                    });
+
+                if (contestError) {
+                    console.error('Contest creation error:', contestError);
+                    // Don't throw error as candidate approval succeeded
+                }
+            }
+
+            Utils.showToast(`Candidate application ${isApprove ? 'approved' : 'rejected'} successfully!`, 'success');
+            
+            // Reload candidates tab
+            const container = document.getElementById('adminTabContent');
+            if (container) {
+                await this.loadCandidatesTab(container);
+            }
+
+        } catch (error) {
+            console.error(`Error ${action}ing candidate:`, error);
+            Utils.showToast(`Error ${action}ing candidate: ${error.message}`, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    }
+
+    // View candidate details in modal
+    async viewCandidateDetails(candidateId) {
+        try {
+            Utils.showLoading();
+
+            // Get detailed candidate information
+            const { data: candidate, error } = await supabase
+                .from('candidate')
+                .select(`
+                    *,
+                    voter:voter_id (
+                        voter_id,
+                        full_name,
+                        email,
+                        phone,
+                        address,
+                        dob
+                    )
+                `)
+                .eq('candidate_id', candidateId)
+                .single();
+
+            if (error) throw error;
+
+            // Get election info
+            const { data: election } = await supabase
+                .from('election')
+                .select('election_id, name, election_type, election_date')
+                .eq('election_id', candidate.election_id)
+                .single();
+
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal candidate-details-modal">
+                    <div class="modal-header">
+                        <h2><i class="fas fa-user-tie"></i> Candidate Application Details</h2>
+                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="candidate-details-grid">
+                            <div class="detail-section">
+                                <h3>Election Information</h3>
+                                <div class="detail-row">
+                                    <strong>Election:</strong> ${election?.name || 'Unknown Election'}
+                                </div>
+                                <div class="detail-row">
+                                    <strong>Type:</strong> ${election?.election_type || 'N/A'}
+                                </div>
+                                <div class="detail-row">
+                                    <strong>Date:</strong> ${election?.election_date ? new Date(election.election_date).toLocaleDateString() : 'N/A'}
+                                </div>
+                            </div>
+
+                            <div class="detail-section">
+                                <h3>Candidate Information</h3>
+                                <div class="detail-row">
+                                    <strong>Name:</strong> ${candidate.full_name}
+                                </div>
+                                <div class="detail-row">
+                                    <strong>Symbol:</strong> ${candidate.symbol || 'N/A'}
+                                </div>
+                                <div class="detail-row">
+                                    <strong>Party:</strong> ${candidate.party || 'Independent'}
+                                </div>
+                                <div class="detail-row">
+                                    <strong>Status:</strong> 
+                                    <span class="status-badge status-${candidate.status}">${candidate.status}</span>
+                                </div>
+                                <div class="detail-row">
+                                    <strong>Applied:</strong> ${new Date(candidate.application_date || Date.now()).toLocaleString()}
+                                </div>
+                            </div>
+
+                            <div class="detail-section">
+                                <h3>Voter Information</h3>
+                                <div class="detail-row">
+                                    <strong>Name:</strong> ${candidate.voter?.full_name || 'Unknown'}
+                                </div>
+                                <div class="detail-row">
+                                    <strong>Email:</strong> ${candidate.voter?.email || 'N/A'}
+                                </div>
+                                <div class="detail-row">
+                                    <strong>Phone:</strong> ${candidate.voter?.phone || 'N/A'}
+                                </div>
+                                ${candidate.voter?.address ? `
+                                    <div class="detail-row">
+                                        <strong>Address:</strong> ${candidate.voter.address}
+                                    </div>
+                                ` : ''}
+                            </div>
+
+                            ${candidate.bio ? `
+                                <div class="detail-section full-width">
+                                    <h3>Biography</h3>
+                                    <p class="detail-text">${candidate.bio}</p>
+                                </div>
+                            ` : ''}
+
+                            ${candidate.manifesto ? `
+                                <div class="detail-section full-width">
+                                    <h3>Election Manifesto</h3>
+                                    <p class="detail-text">${candidate.manifesto}</p>
+                                </div>
+                            ` : ''}
+
+                            ${candidate.photo_url ? `
+                                <div class="detail-section full-width">
+                                    <h3>Candidate Photo</h3>
+                                    <img src="${candidate.photo_url}" alt="Candidate Photo" style="max-width: 200px; border-radius: 8px;">
+                                </div>
+                            ` : ''}
+
+                            ${candidate.admin_notes ? `
+                                <div class="detail-section full-width">
+                                    <h3>Admin Notes</h3>
+                                    <p class="detail-text admin-notes">${candidate.admin_notes}</p>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        ${candidate.status === 'pending' ? `
+                            <button class="btn btn-success" onclick="window.Admin.reviewCandidate('${candidate.candidate_id}', 'approve'); this.closest('.modal-overlay').remove();">
+                                <i class="fas fa-check"></i> Approve
+                            </button>
+                            <button class="btn btn-danger" onclick="window.Admin.reviewCandidate('${candidate.candidate_id}', 'reject'); this.closest('.modal-overlay').remove();">
+                                <i class="fas fa-times"></i> Reject
+                            </button>
+                        ` : ''}
+                        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Close</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+
+        } catch (error) {
+            console.error('Error viewing candidate details:', error);
+            Utils.showToast('Error loading candidate details: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
         }
     }
 

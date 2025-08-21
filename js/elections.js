@@ -252,9 +252,15 @@ class Elections {
             actions += '<i class="fas fa-users"></i> View Candidates</button>';
             
         } else if (category === 'upcoming') {
-            // Upcoming elections: Users can ONLY view candidates, no voting
+            // Upcoming elections: Users can view candidates and apply as candidate
             actions += `<button class="btn btn-primary" onclick="window.Elections.viewCandidates('${election.election_id}')">`;
             actions += '<i class="fas fa-users"></i> View Candidates</button>';
+            
+            // Add "Apply as Candidate" button for logged-in voters
+            if (window.Auth && window.Auth.isAuthenticated() && window.Auth.hasRole('voter')) {
+                actions += `<button class="btn btn-success" onclick="window.Elections.applyAsCandidate('${election.election_id}')">`;
+                actions += '<i class="fas fa-user-plus"></i> Apply as Candidate</button>';
+            }
             
             actions += '<div class="upcoming-notice">';
             actions += '<i class="fas fa-info-circle"></i>';
@@ -360,6 +366,154 @@ class Elections {
     // View election results (existing function - keeping it simple)
     async viewElectionResults(electionId) {
         Utils.showToast('Results functionality will be implemented soon!', 'info');
+    }
+
+    // Apply as candidate for an election
+    async applyAsCandidate(electionId) {
+        try {
+            // Check if user is authenticated and is a voter
+            if (!window.Auth || !window.Auth.isAuthenticated()) {
+                Utils.showToast('Please login to apply as a candidate', 'warning');
+                return;
+            }
+
+            if (!window.Auth.hasRole('voter')) {
+                Utils.showToast('Only voters can apply as candidates', 'error');
+                return;
+            }
+
+            // Get election details
+            const { data: election, error: electionError } = await supabase
+                .from('election')
+                .select('*')
+                .eq('election_id', electionId)
+                .single();
+
+            if (electionError) throw electionError;
+
+            // Check if user has already applied for this election
+            const { data: existingApplication, error: checkError } = await supabase
+                .from('candidate')
+                .select('*')
+                .eq('full_name', window.Auth.currentUser.full_name)
+                .eq('election_id', electionId)
+                .single();
+
+            if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows found
+                throw checkError;
+            }
+
+            if (existingApplication) {
+                Utils.showToast('You have already applied for this election', 'warning');
+                return;
+            }
+
+            // Show candidate application form in modal
+            this.showCandidateApplicationModal(election);
+
+        } catch (error) {
+            console.error('Error applying as candidate:', error);
+            Utils.showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    // Show candidate application modal
+    showCandidateApplicationModal(election) {
+        const modal = document.getElementById('votingModal');
+        const content = document.getElementById('votingContent');
+
+        content.innerHTML = `
+            <div class="candidate-application-form">
+                <div class="form-header">
+                    <h2><i class="fas fa-user-plus"></i> Apply as Candidate</h2>
+                    <p>Apply to become a candidate for: <strong>${Utils.sanitizeHtml(election.name)}</strong></p>
+                </div>
+
+                <form id="candidateApplicationForm">
+                    <div class="form-group">
+                        <label for="candidateParty">Political Party</label>
+                        <input type="text" id="candidateParty" placeholder="Enter your political party or 'Independent'">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="candidateSymbol">Election Symbol</label>
+                        <input type="text" id="candidateSymbol" placeholder="Enter your election symbol">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="candidateBio">Biography</label>
+                        <textarea id="candidateBio" rows="4" placeholder="Tell voters about yourself, your background, and qualifications"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="candidateManifesto">Campaign Manifesto</label>
+                        <textarea id="candidateManifesto" rows="5" placeholder="Describe your vision, goals, and what you plan to achieve if elected"></textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-outline" onclick="document.getElementById('votingModal').style.display = 'none'">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Submit Application
+                        </button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        // Add form submission handler
+        document.getElementById('candidateApplicationForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.submitCandidateApplication(election.election_id);
+        });
+
+        modal.style.display = 'block';
+    }
+
+    // Submit candidate application
+    async submitCandidateApplication(electionId) {
+        try {
+            Utils.showLoading();
+
+            // Get form data
+            const party = document.getElementById('candidateParty').value.trim();
+            const symbol = document.getElementById('candidateSymbol').value.trim();
+            const bio = document.getElementById('candidateBio').value.trim();
+            const manifesto = document.getElementById('candidateManifesto').value.trim();
+
+            // Validate required fields
+            if (!party || !symbol || !bio || !manifesto) {
+                Utils.showToast('Please fill in all required fields', 'warning');
+                return;
+            }
+
+            // Insert candidate application (without photo for now)
+            const { data, error } = await supabase
+                .from('candidate')
+                .insert({
+                    election_id: electionId,
+                    full_name: window.Auth.currentUser.full_name,
+                    party: party,
+                    symbol: symbol,
+                    bio: bio,
+                    manifesto: manifesto,
+                    status: 'pending'
+                });
+
+            if (error) throw error;
+
+            Utils.showToast('Your candidate application has been submitted successfully! It will be reviewed by the administrators.', 'success');
+            
+            // Close modal
+            document.getElementById('votingModal').style.display = 'none';
+
+        } catch (error) {
+            console.error('Error submitting application:', error);
+            Utils.showToast('Error submitting application: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
     }
 }
 
