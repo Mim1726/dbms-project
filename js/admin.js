@@ -253,14 +253,285 @@ class Admin {
 
     // Show create election form
     showCreateElectionForm() {
-        const form = document.getElementById('createElectionForm');
-        if (form) {
-            form.style.display = 'block';
-            document.getElementById('electionForm').onsubmit = (e) => this.handleCreateElection(e);
+        this.showCreateElectionModal();
+    }
+
+    // Show modal popup for creating election
+    showCreateElectionModal() {
+        // Create modal HTML
+        const modalHTML = `
+            <div id="createElectionModal" class="modal" style="display: block;">
+                <div class="modal-content" style="max-width: 600px;">
+                    <div class="modal-header">
+                        <h2><i class="fas fa-plus-circle"></i> Create New Election</h2>
+                        <span class="close" onclick="this.closeCreateElectionModal()">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <form id="createElectionModalForm">
+                            <div class="form-group">
+                                <label for="modalElectionName">Election Name *</label>
+                                <input type="text" id="modalElectionName" name="name" required 
+                                       placeholder="e.g., Student Council Election 2025">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="modalElectionType">Election Type *</label>
+                                <select id="modalElectionType" name="election_type" required>
+                                    <option value="">Select Election Type</option>
+                                    <option value="General">General Election</option>
+                                    <option value="Local">Local Election</option>
+                                    <option value="University">University Election</option>
+                                    <option value="Special">Special Election</option>
+                                    <option value="Primary">Primary Election</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="modalDescription">Description</label>
+                                <textarea id="modalDescription" name="description" 
+                                         placeholder="Provide details about this election..."></textarea>
+                            </div>
+
+                            <div class="datetime-container">
+                                <div class="datetime-group">
+                                    <div class="datetime-item">
+                                        <h4><i class="fas fa-calendar-plus"></i> Voting Start</h4>
+                                        <div class="form-group">
+                                            <label for="modalStartDate">Start Date *</label>
+                                            <input type="date" id="modalStartDate" name="start_date" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="modalStartTime">Start Time *</label>
+                                            <input type="time" id="modalStartTime" name="start_time" required>
+                                        </div>
+                                    </div>
+
+                                    <div class="datetime-item">
+                                        <h4><i class="fas fa-calendar-times"></i> Voting End</h4>
+                                        <div class="form-group">
+                                            <label for="modalEndDate">End Date *</label>
+                                            <input type="date" id="modalEndDate" name="end_date" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="modalEndTime">End Time *</label>
+                                            <input type="time" id="modalEndTime" name="end_time" required>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> Create Election
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="window.Admin.closeCreateElectionModal()">
+                                    <i class="fas fa-times"></i> Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Remove existing modal if any
+        const existingModal = document.getElementById('createElectionModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        // Add modal to body
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+        // Set up form validation and defaults
+        this.setupModalFormDefaults();
+
+        // Handle form submission
+        document.getElementById('createElectionModalForm').onsubmit = (e) => this.handleCreateElectionModal(e);
+    }
+
+    // Set up modal form defaults and validation
+    setupModalFormDefaults() {
+        // Set minimum date to today
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('modalStartDate').min = today;
+        document.getElementById('modalEndDate').min = today;
+        
+        // Set default start time to current time
+        const now = new Date();
+        const timeString = now.toTimeString().slice(0, 5);
+        document.getElementById('modalStartTime').value = timeString;
+        
+        // Set default end time to 2 hours later
+        now.setHours(now.getHours() + 2);
+        const endTimeString = now.toTimeString().slice(0, 5);
+        document.getElementById('modalEndTime').value = endTimeString;
+
+        // Update end date minimum when start date changes
+        document.getElementById('modalStartDate').addEventListener('change', function() {
+            document.getElementById('modalEndDate').min = this.value;
             
-            // Set minimum date to today
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('electionDate').min = today;
+            // If end date is before start date, update it
+            if (document.getElementById('modalEndDate').value < this.value) {
+                document.getElementById('modalEndDate').value = this.value;
+            }
+        });
+    }
+
+    // Close modal
+    closeCreateElectionModal() {
+        const modal = document.getElementById('createElectionModal');
+        if (modal) {
+            modal.remove();
+        }
+    }
+
+    // Handle modal form submission
+    async handleCreateElectionModal(event) {
+        event.preventDefault();
+        
+        try {
+            const formData = new FormData(event.target);
+            const electionData = Object.fromEntries(formData);
+            
+            // Validate required fields
+            if (!electionData.name || !electionData.election_type || !electionData.start_date || !electionData.start_time || !electionData.end_date || !electionData.end_time) {
+                this.showModalAlert('Please fill in all required fields.', 'error');
+                return;
+            }
+            
+            // Validate dates
+            const startDateTime = new Date(`${electionData.start_date}T${electionData.start_time}`);
+            const endDateTime = new Date(`${electionData.end_date}T${electionData.end_time}`);
+            
+            if (endDateTime <= startDateTime) {
+                this.showModalAlert('End date and time must be after start date and time.', 'error');
+                return;
+            }
+            
+            if (startDateTime < new Date()) {
+                this.showModalAlert('Start date and time cannot be in the past.', 'error');
+                return;
+            }
+
+            // Show loading state
+            this.showModalAlert('Creating election...', 'loading');
+            
+            // Check if election name already exists
+            const { data: existingElection, error: checkError } = await supabase
+                .from('election')
+                .select('election_id, name')
+                .eq('name', electionData.name)
+                .single();
+            
+            if (existingElection) {
+                this.showModalAlert(`Election with name "${electionData.name}" already exists. Please choose a different name.`, 'error');
+                return;
+            }
+            
+            // Create election
+            const { data, error } = await supabase
+                .from('election')
+                .insert([{
+                    name: electionData.name,
+                    election_type: electionData.election_type,
+                    election_date: electionData.end_date, // Using end date as main election date
+                    description: electionData.description || null,
+                    is_active: 'Y',
+                    admin_id: window.Auth?.currentUser?.admin_id || 1
+                }])
+                .select()
+                .single();
+
+            if (error) {
+                if (error.code === '23505') { // PostgreSQL unique constraint violation
+                    this.showModalAlert(`Election with name "${electionData.name}" already exists. Please choose a different name.`, 'error');
+                } else {
+                    this.showModalAlert(`Error creating election: ${error.message}`, 'error');
+                }
+                return;
+            }
+
+            // Create schedule entry
+            const { error: scheduleError } = await supabase
+                .from('schedule')
+                .insert([{
+                    election_id: data.election_id,
+                    voting_start: startDateTime.toISOString(),
+                    voting_end: endDateTime.toISOString()
+                }]);
+
+            if (scheduleError) {
+                console.warn('Schedule creation warning:', scheduleError);
+            }
+
+            // Show success message
+            this.showModalAlert(`🎉 Election "${electionData.name}" created successfully! Election ID: ${data.election_id}`, 'success');
+            
+            // Close modal after 2 seconds and refresh elections
+            setTimeout(() => {
+                this.closeCreateElectionModal();
+                this.loadElections();
+            }, 2000);
+
+        } catch (error) {
+            console.error('Error creating election:', error);
+            this.showModalAlert(`❌ Unexpected error: ${error.message}`, 'error');
+        }
+    }
+
+    // Show alert message in modal
+    showModalAlert(message, type) {
+        // Remove existing alert
+        const existingAlert = document.getElementById('modalAlert');
+        if (existingAlert) {
+            existingAlert.remove();
+        }
+
+        // Create alert element
+        const alertClass = type === 'error' ? 'alert-error' : 
+                          type === 'success' ? 'alert-success' : 
+                          type === 'loading' ? 'alert-loading' : 'alert-info';
+        
+        const icon = type === 'error' ? '❌' : 
+                    type === 'success' ? '✅' : 
+                    type === 'loading' ? '⏳' : 'ℹ️';
+
+        const alertHTML = `
+            <div id="modalAlert" class="modal-alert ${alertClass}" style="
+                padding: 15px;
+                margin: 15px 0;
+                border-radius: 8px;
+                font-weight: 500;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                ${type === 'error' ? 'background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24;' : ''}
+                ${type === 'success' ? 'background: #d4edda; border: 1px solid #c3e6cb; color: #155724;' : ''}
+                ${type === 'loading' ? 'background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460;' : ''}
+            ">
+                <span style="font-size: 1.2rem;">${icon}</span>
+                <span>${message}</span>
+            </div>
+        `;
+
+        // Insert alert at the top of modal body
+        const modalBody = document.querySelector('#createElectionModal .modal-body');
+        if (modalBody) {
+            modalBody.insertAdjacentHTML('afterbegin', alertHTML);
+            
+            // Scroll to top to show the alert
+            modalBody.scrollTop = 0;
+        }
+
+        // Auto-remove loading alerts after 10 seconds
+        if (type === 'loading') {
+            setTimeout(() => {
+                const alert = document.getElementById('modalAlert');
+                if (alert && alert.classList.contains('alert-loading')) {
+                    alert.remove();
+                }
+            }, 10000);
         }
     }
 

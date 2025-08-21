@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Test Election</title>
+    <script src="js/config.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: transform 0.2s;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+        }
+        .success {
+            background: #28a745;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: none;
+        }
+        .error {
+            background: #dc3545;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: none;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+        }
+        .candidate-list {
+            display: grid;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .candidate-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗳️ Create Test Election for Voting Demo</h1>
+        
+        <div class="status">
+            <h3>What this will create:</h3>
+            <ul>
+                <li><strong>Election:</strong> Student Council Election 2025</li>
+                <li><strong>Election Date:</strong> August 30, 2025 (Active)</li>
+                <li><strong>Candidates:</strong> 4 candidates with different parties</li>
+                <li><strong>Purpose:</strong> Test the voting functionality</li>
+            </ul>
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+            <button class="button" onclick="createTestElection()">
+                🎯 Create Test Election & Candidates
+            </button>
+            <button class="button" onclick="checkElections()" style="background: #28a745;">
+                📊 Check Current Elections
+            </button>
+        </div>
+
+        <div id="success" class="success"></div>
+        <div id="error" class="error"></div>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        async function createTestElection() {
+            try {
+                console.log('Creating test election...');
+                
+                // Create the election first
+                const { data: election, error: electionError } = await supabase
+                    .from('election')
+                    .insert([{
+                        name: 'Student Council Election 2025',
+                        election_type: 'University',
+                        election_date: '2025-08-30',
+                        is_active: 'Y',
+                        admin_id: 1,
+                        description: 'Student Council President Election - Vote for your preferred candidate!'
+                    }])
+                    .select()
+                    .single();
+
+                if (electionError) {
+                    throw electionError;
+                }
+
+                console.log('Election created:', election);
+                const electionId = election.election_id;
+
+                // Create candidates
+                const candidates = [
+                    {
+                        election_id: electionId,
+                        full_name: 'Emma Wilson',
+                        symbol: '🎓',
+                        party: 'Academic Excellence Party',
+                        bio: 'Final year Computer Science student with leadership experience in various clubs',
+                        manifesto: 'Improving student services, better facilities, and stronger industry partnerships',
+                        status: 'approved'
+                    },
+                    {
+                        election_id: electionId,
+                        full_name: 'Michael Chen',
+                        symbol: '🚀',
+                        party: 'Innovation Party',
+                        bio: 'Engineering student passionate about technology and student welfare',
+                        manifesto: 'Digital transformation of campus services and enhanced learning resources',
+                        status: 'approved'
+                    },
+                    {
+                        election_id: electionId,
+                        full_name: 'Sarah Ahmed',
+                        symbol: '🌟',
+                        party: 'Unity Party',
+                        bio: 'Student activist focused on diversity and inclusion initiatives',
+                        manifesto: 'Creating a more inclusive campus environment and supporting student mental health',
+                        status: 'approved'
+                    },
+                    {
+                        election_id: electionId,
+                        full_name: 'David Martinez',
+                        symbol: '⚡',
+                        party: 'Progress Party',
+                        bio: 'Business major with experience in student government',
+                        manifesto: 'Financial transparency, improved student events, and career development programs',
+                        status: 'approved'
+                    }
+                ];
+
+                const { data: candidatesData, error: candidatesError } = await supabase
+                    .from('candidate')
+                    .insert(candidates)
+                    .select();
+
+                if (candidatesError) {
+                    throw candidatesError;
+                }
+
+                console.log('Candidates created:', candidatesData);
+
+                // Show success
+                document.getElementById('success').style.display = 'block';
+                document.getElementById('success').innerHTML = `
+                    <h3>✅ Test Election Created Successfully!</h3>
+                    <p><strong>Election ID:</strong> ${electionId}</p>
+                    <p><strong>Election Name:</strong> ${election.name}</p>
+                    <p><strong>Candidates Created:</strong> ${candidatesData.length}</p>
+                    <p>You can now go back to the main site and test the voting functionality!</p>
+                `;
+
+                // Show the candidates
+                showCandidates(candidatesData);
+
+            } catch (error) {
+                console.error('Error creating test election:', error);
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').innerHTML = `
+                    <h3>❌ Error Creating Test Election</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+
+        async function checkElections() {
+            try {
+                const { data: elections, error } = await supabase
+                    .from('election')
+                    .select(`
+                        election_id,
+                        name,
+                        election_type,
+                        election_date,
+                        is_active,
+                        description,
+                        candidate:candidate(candidate_id, full_name, party, symbol, status)
+                    `)
+                    .eq('is_active', 'Y')
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                document.getElementById('results').innerHTML = `
+                    <h3>📊 Current Active Elections (${elections.length})</h3>
+                    ${elections.map(election => `
+                        <div style="background: white; padding: 20px; margin: 15px 0; border-radius: 8px; border: 1px solid #ddd;">
+                            <h4>${election.name}</h4>
+                            <p><strong>Type:</strong> ${election.election_type} | <strong>Date:</strong> ${election.election_date}</p>
+                            <p><strong>Description:</strong> ${election.description}</p>
+                            <p><strong>Candidates:</strong> ${election.candidate ? election.candidate.length : 0}</p>
+                            ${election.candidate && election.candidate.length > 0 ? 
+                                `<div class="candidate-list">
+                                    ${election.candidate.map(candidate => `
+                                        <div class="candidate-card">
+                                            <strong>${candidate.symbol} ${candidate.full_name}</strong> - ${candidate.party}
+                                            <span style="float: right; color: ${candidate.status === 'approved' ? 'green' : 'orange'};">
+                                                ${candidate.status}
+                                            </span>
+                                        </div>
+                                    `).join('')}
+                                </div>` : ''
+                            }
+                        </div>
+                    `).join('')}
+                `;
+
+            } catch (error) {
+                console.error('Error checking elections:', error);
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').innerHTML = `Error: ${error.message}`;
+            }
+        }
+
+        function showCandidates(candidates) {
+            const candidateList = candidates.map(candidate => `
+                <div class="candidate-card">
+                    <strong>${candidate.symbol} ${candidate.full_name}</strong><br>
+                    <em>${candidate.party}</em><br>
+                    <small>${candidate.bio}</small>
+                </div>
+            `).join('');
+
+            document.getElementById('results').innerHTML = `
+                <h3>👥 Created Candidates:</h3>
+                <div class="candidate-list">
+                    ${candidateList}
+                </div>
+            `;
+        }
+
+        // Auto-check elections on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            checkElections();
+        });
+    </script>
+</body>
+</html>

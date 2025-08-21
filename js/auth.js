@@ -624,8 +624,8 @@ class Auth {
                 <div class="dashboard-actions">
                     <div class="action-grid">
                         <div class="action-card" onclick="showDashboardSection('elections')">
-                            <i class="fas fa-plus-circle"></i>
-                            <h3>Create Election</h3>
+                            <i class="fas fa-cogs"></i>
+                            <h3>Manage Elections</h3>
                             <p>Set up new elections and manage existing ones</p>
                         </div>
                         <div class="action-card" onclick="showDashboardSection('candidates')">
