@@ -1708,12 +1708,32 @@ function showDashboardSection(section) {
             }
             break;
         case 'results':
-            const resultsSection = document.getElementById('results');
-            if (resultsSection) {
-                resultsSection.style.display = 'block';
-                resultsSection.classList.add('active');
-                if (window.Elections) {
-                    window.Elections.loadResults();
+            if (userType === 'admin') {
+                // Show admin dashboard for viewing results
+                document.getElementById('adminDashboard').style.display = 'block';
+                document.getElementById('mainContent').style.display = 'none';
+                if (window.Admin) {
+                    // Get the admin tab content container
+                    const container = document.getElementById('adminTabContent');
+                    if (container) {
+                        // Update tab active states
+                        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+                        const resultsTab = document.querySelector('.tab-btn[onclick*="results"]');
+                        if (resultsTab) resultsTab.classList.add('active');
+                        
+                        // Load results directly
+                        window.Admin.loadResultsTab(container);
+                    }
+                }
+            } else {
+                // Show results section for voters
+                const resultsSection = document.getElementById('results');
+                if (resultsSection) {
+                    resultsSection.style.display = 'block';
+                    resultsSection.classList.add('active');
+                    if (window.Elections) {
+                        window.Elections.loadResults();
+                    }
                 }
             }
             break;
