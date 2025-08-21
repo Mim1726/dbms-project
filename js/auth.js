@@ -1648,10 +1648,29 @@ function showDashboardSection(section) {
     // Show appropriate section based on dashboard type and user role
     switch (section) {
         case 'home':
+            // Hide admin dashboard if it's showing
+            const adminDashboard = document.getElementById('adminDashboard');
+            if (adminDashboard) {
+                adminDashboard.style.display = 'none';
+            }
+            
+            // Hide voter dashboard if it's showing
+            const voterDashboard = document.getElementById('voterDashboard');
+            if (voterDashboard) {
+                voterDashboard.style.display = 'none';
+            }
+            
+            // Show main content
+            const mainContent = document.getElementById('mainContent');
+            if (mainContent) {
+                mainContent.style.display = 'block';
+            }
+            
+            // Show or create dashboard home section
             if (dashboardHome) {
                 dashboardHome.style.display = 'block';
             } else {
-                window.Auth.showDashboardHome(userType);
+                window.Auth.showDashboardInterface();
             }
             break;
         case 'elections':
