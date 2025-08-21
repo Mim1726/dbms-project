@@ -538,10 +538,6 @@ class Auth {
             if (userType === 'admin') {
                 dashboardNav.innerHTML = `
                     <a href="#dashboard-home" class="nav-link active" onclick="showDashboardSection('home')">Dashboard</a>
-                    <a href="#manage-elections" class="nav-link" onclick="showDashboardSection('elections')">Manage Elections</a>
-                    <a href="#manage-candidates" class="nav-link" onclick="showDashboardSection('candidates')">Manage Candidates</a>
-                    <a href="#manage-voters" class="nav-link" onclick="showDashboardSection('voters')">Manage Voters</a>
-                    <a href="#view-results" class="nav-link" onclick="showDashboardSection('results')">View Results</a>
                 `;
             } else {
                 dashboardNav.innerHTML = `
