@@ -39,7 +39,7 @@ class Elections {
                 const { data: candidates, error: candidatesError } = await supabase
                     .from('candidate')
                     .select('*')
-                    .eq('election_id', election.election_id);
+                    .eq('election_id', election.id);
 
                 if (candidatesError) {
                     console.error('Error loading candidates:', candidatesError);
@@ -77,25 +77,13 @@ class Elections {
 
         elections.forEach(election => {
             const status = this.getElectionStatus(election);
-            console.log(`Election: ${election.name}, Date: ${election.election_date}, is_active: ${election.is_active}, Status: ${status}`);
-            
-            // Categorize based on status
-            if (status === 'Active') {
-                // Only truly active elections (happening now or very soon)
+            if (status === 'Active' || status === 'PreVoting') {
                 ongoingElections.push(election);
-            } else if (status === 'PreVoting' || status === 'Upcoming') {
-                // Elections where voting isn't available yet
+            } else if (status === 'Upcoming') {
                 upcomingElections.push(election);
             } else {
-                // Ended elections
                 endedElections.push(election);
             }
-        });
-
-        console.log('Categorization Results:', {
-            ongoing: ongoingElections.map(e => e.name),
-            upcoming: upcomingElections.map(e => e.name),
-            ended: endedElections.map(e => e.name)
         });
 
         let html = '';
@@ -180,55 +168,25 @@ class Elections {
 
     // Get election status with improved logic
     getElectionStatus(election) {
+        // If election is explicitly marked as active, return 'Active' status
+        if (election.is_active === 'Y') {
+            return 'Active';
+        }
+        
         const now = new Date();
         const electionDate = new Date(election.election_date);
         
-        console.log(`Checking election: ${election.name}`);
-        console.log(`Current date: ${now.toISOString()}`);
-        console.log(`Election date: ${electionDate.toISOString()}`);
-        console.log(`is_active: ${election.is_active}`);
-        
-        // First check if election date has passed
-        if (electionDate < now) {
-            console.log(`Election ${election.name} has ended (date passed)`);
-            return 'Ended';
-        }
-        
-        // Calculate days until election
-        const daysDiff = (electionDate - now) / (1000 * 60 * 60 * 24);
-        console.log(`Days until election: ${daysDiff}`);
-        
-        // Check if it's election day (within 1 day)
-        if (Math.abs(daysDiff) <= 1) {
-            if (election.is_active === 'Y') {
-                console.log(`Election ${election.name} is active (election day and marked active)`);
-                return 'Active';
-            } else {
-                console.log(`Election ${election.name} is scheduled for today but not active`);
+        // Simple logic for now
+        if (electionDate > now) {
+            // Check if it's within 30 days (PreVoting period)
+            const daysDiff = (electionDate - now) / (1000 * 60 * 60 * 24);
+            if (daysDiff <= 30) {
                 return 'PreVoting';
-            }
-        }
-        
-        // For future elections
-        if (daysDiff > 30) {
-            // More than 30 days away
-            if (election.is_active === 'Y') {
-                // Even if marked active, if it's far in future, it should be upcoming
-                console.log(`Election ${election.name} is upcoming (${Math.round(daysDiff)} days away, will be active later)`);
-                return 'Upcoming';
             } else {
-                console.log(`Election ${election.name} is upcoming (${Math.round(daysDiff)} days away)`);
                 return 'Upcoming';
             }
         } else {
-            // Within 30 days
-            if (election.is_active === 'Y') {
-                console.log(`Election ${election.name} is active (within 30 days and marked active)`);
-                return 'Active';
-            } else {
-                console.log(`Election ${election.name} is in pre-voting period (within 30 days but not active)`);
-                return 'PreVoting';
-            }
+            return 'Ended';
         }
     }
 
@@ -240,7 +198,7 @@ class Elections {
             // Ongoing elections: Users can vote AND view candidates
             if (window.Auth && window.Auth.isAuthenticated()) {
                 if (window.Auth.hasRole('voter')) {
-                    actions += `<button class="btn btn-primary" onclick="window.Voting.startVoting('${election.election_id}')">`;
+                    actions += `<button class="btn btn-primary" onclick="window.Voting.startVoting('${election.id}')">`;
                     actions += '<i class="fas fa-vote-yea"></i> Vote Now</button>';
                 }
             } else {
@@ -248,12 +206,12 @@ class Elections {
                 actions += '<i class="fas fa-sign-in-alt"></i> Login to Vote</button>';
             }
             
-            actions += `<button class="btn btn-outline" onclick="window.Elections.viewCandidates('${election.election_id}')">`;
+            actions += `<button class="btn btn-outline" onclick="window.Elections.viewCandidates('${election.id}')">`;
             actions += '<i class="fas fa-users"></i> View Candidates</button>';
             
         } else if (category === 'upcoming') {
             // Upcoming elections: Users can ONLY view candidates, no voting
-            actions += `<button class="btn btn-primary" onclick="window.Elections.viewCandidates('${election.election_id}')">`;
+            actions += `<button class="btn btn-primary" onclick="window.Elections.viewCandidates('${election.id}')">`;
             actions += '<i class="fas fa-users"></i> View Candidates</button>';
             
             actions += '<div class="upcoming-notice">';
@@ -263,7 +221,7 @@ class Elections {
             
         } else if (category === 'ended') {
             // Ended elections: Only view results
-            actions += `<button class="btn btn-outline" onclick="window.Elections.viewElectionResults('${election.election_id}')">`;
+            actions += `<button class="btn btn-outline" onclick="window.Elections.viewElectionResults('${election.id}')">`;
             actions += '<i class="fas fa-chart-bar"></i> View Results</button>';
         }
 
@@ -279,7 +237,7 @@ class Elections {
             const { data: election, error: electionError } = await supabase
                 .from('election')
                 .select('*')
-                .eq('election_id', electionId)
+                .eq('id', electionId)
                 .single();
 
             if (electionError) throw electionError;
@@ -289,7 +247,7 @@ class Elections {
                 .from('candidate')
                 .select('*')
                 .eq('election_id', electionId)
-                .order('full_name');
+                .order('name');
 
             if (candidatesError) throw candidatesError;
 
@@ -314,13 +272,13 @@ class Elections {
                 <div class="candidate-preview-card">
                     <div class="candidate-photo-container">
                         ${candidate.photo_url ? 
-                            `<img src="${candidate.photo_url}" alt="${candidate.full_name}" class="candidate-photo">` :
+                            `<img src="${candidate.photo_url}" alt="${candidate.name}" class="candidate-photo">` :
                             '<div class="candidate-placeholder"><i class="fas fa-user"></i></div>'
                         }
                     </div>
                     
                     <div class="candidate-preview-info">
-                        <h3>${Utils.sanitizeHtml(candidate.full_name)}</h3>
+                        <h3>${Utils.sanitizeHtml(candidate.name)}</h3>
                         <p class="candidate-party">${Utils.sanitizeHtml(candidate.party || 'Independent')}</p>
                         
                         ${candidate.biography ? `

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Voting Debug</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+</head>
+<body>
+    <h1>Debug Voting System</h1>
+    
+    <div>
+        <h2>Test Database Connection</h2>
+        <button onclick="testConnection()">Test Connection</button>
+        <div id="connectionResult"></div>
+    </div>
+    
+    <div>
+        <h2>Check Elections</h2>
+        <button onclick="checkElections()">Check Elections</button>
+        <div id="electionsResult"></div>
+    </div>
+    
+    <div>
+        <h2>Check Candidates</h2>
+        <button onclick="checkCandidates()">Check Candidates</button>
+        <div id="candidatesResult"></div>
+    </div>
+    
+    <div>
+        <h2>Check Contests</h2>
+        <button onclick="checkContests()">Check Contests</button>
+        <div id="contestsResult"></div>
+    </div>
+
+    <script>
+        async function testConnection() {
+            try {
+                const { data, error } = await supabase.from('election').select('count');
+                document.getElementById('connectionResult').innerHTML = error ? 
+                    `<pre style="color: red;">${JSON.stringify(error, null, 2)}</pre>` :
+                    `<pre style="color: green;">Connection successful! Elections table accessible.</pre>`;
+            } catch (err) {
+                document.getElementById('connectionResult').innerHTML = 
+                    `<pre style="color: red;">Error: ${err.message}</pre>`;
+            }
+        }
+
+        async function checkElections() {
+            try {
+                const { data, error } = await supabase.from('election').select('*');
+                document.getElementById('electionsResult').innerHTML = error ? 
+                    `<pre style="color: red;">${JSON.stringify(error, null, 2)}</pre>` :
+                    `<pre style="color: green;">${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (err) {
+                document.getElementById('electionsResult').innerHTML = 
+                    `<pre style="color: red;">Error: ${err.message}</pre>`;
+            }
+        }
+
+        async function checkCandidates() {
+            try {
+                const { data, error } = await supabase.from('candidate').select('*');
+                document.getElementById('candidatesResult').innerHTML = error ? 
+                    `<pre style="color: red;">${JSON.stringify(error, null, 2)}</pre>` :
+                    `<pre style="color: green;">${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (err) {
+                document.getElementById('candidatesResult').innerHTML = 
+                    `<pre style="color: red;">Error: ${err.message}</pre>`;
+            }
+        }
+
+        async function checkContests() {
+            try {
+                const { data, error } = await supabase.from('contest').select('*');
+                document.getElementById('contestsResult').innerHTML = error ? 
+                    `<pre style="color: red;">${JSON.stringify(error, null, 2)}</pre>` :
+                    `<pre style="color: green;">${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (err) {
+                document.getElementById('contestsResult').innerHTML = 
+                    `<pre style="color: red;">Error: ${err.message}</pre>`;
+            }
+        }
+    </script>
+</body>
+</html>

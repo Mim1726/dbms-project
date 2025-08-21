@@ -46,9 +46,9 @@ class Voting {
             
             // Get election details
             const { data: election, error: electionError } = await supabase
-                .from(CONFIG.TABLES.ELECTIONS)
+                .from('election')
                 .select('*')
-                .eq('election_id', electionId)  // Changed from 'id' to 'election_id'
+                .eq('election_id', electionId)
                 .single();
 
             if (electionError) {
@@ -116,31 +116,45 @@ class Voting {
 
             console.log('Fetching candidates...');
 
-            // Get approved candidates through contest table
-                const intElectionId = parseInt(electionId, 10);
-                const { data: candidates, error: candidatesError } = await supabase
-                    .from('candidate')
-                    .select('*')
-                    .eq('election_id', intElectionId)
-                    .eq('status', 'approved');
+            // Get candidates that are in contests for this election
+            const intElectionId = parseInt(electionId, 10);
+            const { data: contests, error: contestsError } = await supabase
+                .from('contest')
+                .select(`
+                    candidate_id,
+                    candidate:candidate_id (
+                        candidate_id,
+                        full_name,
+                        symbol,
+                        party,
+                        bio,
+                        manifesto,
+                        photo_url,
+                        status
+                    )
+                `)
+                .eq('election_id', intElectionId);
 
-                if (candidatesError) {
-                    console.error('Candidates fetch error:', candidatesError);
-                    throw candidatesError;
-                }
+            if (contestsError) {
+                console.error('Contests fetch error:', contestsError);
+                throw contestsError;
+            }
 
-                console.log('Candidates found:', candidates);
+            // Extract candidates from contests
+            const candidates = contests
+                .filter(contest => contest.candidate && contest.candidate.status === 'approved')
+                .map(contest => contest.candidate);
 
-                if (!candidates || candidates.length === 0) {
-                    Utils.showToast('No candidates found for this election', 'warning');
-                    this.currentElection = election;
-                    this.currentCandidates = [];
-                    this.selectedCandidate = null;
-                    this.showVotingInterface();
-                    return;
-                }
+            console.log('Candidates found:', candidates);
 
-            this.currentElection = election;
+            if (!candidates || candidates.length === 0) {
+                Utils.showToast('No candidates found for this election', 'warning');
+                this.currentElection = election;
+                this.currentCandidates = [];
+                this.selectedCandidate = null;
+                this.showVotingInterface();
+                return;
+            }            this.currentElection = election;
             this.currentCandidates = candidates;
             this.selectedCandidate = preSelectedCandidateId || null;
 
@@ -199,35 +213,35 @@ class Voting {
         content.innerHTML = `
             <div class="voting-interface">
                 <div class="voting-header">
-                    <h2>${Utils.sanitizeHtml(this.currentElection.title)}</h2>
+                    <h2>${Utils.sanitizeHtml(this.currentElection.name)}</h2>
                     <p class="voting-instructions">Select one candidate to vote for:</p>
                 </div>
 
                 <div class="voting-candidates">
                     ${this.currentCandidates.map(candidate => `
-                        <div class="voting-candidate" data-candidate-id="${candidate.id}">
+                        <div class="voting-candidate" data-candidate-id="${candidate.candidate_id}">
                             <div class="candidate-selection">
                                 <input type="radio" 
                                        name="selectedCandidate" 
-                                       value="${candidate.id}" 
-                                       id="candidate_${candidate.id}"
-                                       ${preSelectedCandidateId === candidate.id ? 'checked' : ''}
-                                       onchange="window.Voting.selectCandidate('${candidate.id}')">
-                                <label for="candidate_${candidate.id}" class="candidate-card-voting">
+                                       value="${candidate.candidate_id}" 
+                                       id="candidate_${candidate.candidate_id}"
+                                       ${preSelectedCandidateId === candidate.candidate_id ? 'checked' : ''}
+                                       onchange="window.Voting.selectCandidate('${candidate.candidate_id}')">
+                                <label for="candidate_${candidate.candidate_id}" class="candidate-card-voting">
                                     <div class="candidate-photo-container">
                                         ${candidate.photo_url ? 
-                                            `<img src="${candidate.photo_url}" alt="${candidate.name}" class="candidate-photo">` :
+                                            `<img src="${candidate.photo_url}" alt="${candidate.full_name}" class="candidate-photo">` :
                                             `<div class="candidate-placeholder"><i class="fas fa-user"></i></div>`
                                         }
                                     </div>
                                     
                                     <div class="candidate-info">
-                                        <h3>${Utils.sanitizeHtml(candidate.name)}</h3>
+                                        <h3>${Utils.sanitizeHtml(candidate.full_name)}</h3>
                                         <p class="candidate-party">${Utils.sanitizeHtml(candidate.party || 'Independent')}</p>
                                         
-                                        ${candidate.biography ? `
+                                        ${candidate.bio ? `
                                             <div class="candidate-bio-preview">
-                                                ${Utils.sanitizeHtml(candidate.biography.substring(0, 100))}${candidate.biography.length > 100 ? '...' : ''}
+                                                ${Utils.sanitizeHtml(candidate.bio.substring(0, 100))}${candidate.bio.length > 100 ? '...' : ''}
                                             </div>
                                         ` : ''}
                                     </div>
@@ -271,13 +285,77 @@ class Voting {
         modal.style.display = 'block';
     }
 
+    // Show candidates only (for upcoming elections)
+    showCandidatesOnly(election) {
+        const modal = document.getElementById('votingModal');
+        const content = document.getElementById('votingContent');
+
+        content.innerHTML = `
+            <div class="candidates-preview">
+                <div class="preview-header">
+                    <h2><i class="fas fa-users"></i> ${Utils.sanitizeHtml(election.name)} - Candidates</h2>
+                    <p class="preview-instructions">Meet the candidates for this upcoming election</p>
+                </div>
+
+                <div class="upcoming-notice-banner">
+                    <i class="fas fa-clock"></i>
+                    <span>Voting is not yet available for this election. Check back when voting opens!</span>
+                </div>
+
+                <div class="candidates-preview-grid">
+                    ${this.currentCandidates.map(candidate => `
+                        <div class="candidate-preview-card">
+                            <div class="candidate-photo-container">
+                                ${candidate.photo_url ? 
+                                    `<img src="${candidate.photo_url}" alt="${candidate.full_name}" class="candidate-photo">` :
+                                    `<div class="candidate-placeholder"><i class="fas fa-user"></i></div>`
+                                }
+                            </div>
+                            
+                            <div class="candidate-preview-info">
+                                <h3>${Utils.sanitizeHtml(candidate.full_name)}</h3>
+                                <p class="candidate-party">${Utils.sanitizeHtml(candidate.party || 'Independent')}</p>
+                                
+                                ${candidate.bio ? `
+                                    <div class="candidate-bio">
+                                        ${Utils.sanitizeHtml(candidate.bio)}
+                                    </div>
+                                ` : ''}
+                                
+                                ${candidate.manifesto ? `
+                                    <div class="candidate-platform">
+                                        <strong>Platform:</strong> ${Utils.sanitizeHtml(candidate.manifesto)}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div class="preview-actions">
+                    <button class="btn btn-primary" onclick="window.Voting.cancelVoting()">
+                        <i class="fas fa-arrow-left"></i> Back to Elections
+                    </button>
+                </div>
+            </div>
+        `;
+
+        modal.style.display = 'block';
+    }
+
     // Select candidate
     selectCandidate(candidateId) {
+        console.log('selectCandidate called with:', candidateId);
         this.selectedCandidate = candidateId;
         
         // Enable confirm button
         const confirmBtn = document.getElementById('confirmVoteBtn');
-        confirmBtn.disabled = false;
+        if (confirmBtn) {
+            confirmBtn.disabled = false;
+            console.log('Confirm button enabled');
+        } else {
+            console.error('Confirm button not found!');
+        }
         
         // Update UI to show selection
         document.querySelectorAll('.voting-candidate').forEach(card => {
@@ -287,11 +365,16 @@ class Voting {
         const selectedCard = document.querySelector(`[data-candidate-id="${candidateId}"]`);
         if (selectedCard) {
             selectedCard.classList.add('selected');
+            console.log('Card selected:', selectedCard);
+        } else {
+            console.error('Selected card not found for candidateId:', candidateId);
         }
     }
 
     // Confirm vote
     async confirmVote() {
+        console.log('confirmVote called, selectedCandidate:', this.selectedCandidate);
+        
         if (!this.selectedCandidate) {
             Utils.showToast('Please select a candidate', 'warning');
             return;
@@ -301,62 +384,142 @@ class Voting {
         const confirmed = await this.showConfirmationDialog();
         if (!confirmed) return;
 
+        console.log('Vote confirmed, proceeding with submission...');
         Utils.showLoading();
 
         try {
             const currentUser = window.Auth.getCurrentUser();
+            console.log('Current user:', currentUser);
+            
+            if (!currentUser) {
+                throw new Error('No authenticated user found');
+            }
             
             // Get voter record
             const { data: voterData, error: voterError } = await supabase
-                .from(CONFIG.TABLES.VOTERS)
+                .from('voter')
                 .select('*')
-                .eq('user_id', currentUser.id)
+                .eq('email', currentUser.email)
                 .single();
 
-            if (voterError) throw voterError;
+            console.log('Voter lookup result:', { voterData, voterError });
 
-            // Double-check if already voted
-            const { data: existingVote, error: checkError } = await supabase
-                .from(CONFIG.TABLES.VOTES)
-                .select('id')
-                .eq('election_id', this.currentElection.id)
-                .eq('voter_id', voterData.id)
-                .single();
-
-            if (checkError && checkError.code !== 'PGRST116') {
-                throw checkError;
+            if (voterError) {
+                console.error('Voter lookup error:', voterError);
+                throw voterError;
             }
 
-            if (existingVote) {
+            if (!voterData) {
+                throw new Error('Voter record not found');
+            }
+
+            // Double-check if already voted in this election
+            const { data: existingVotes, error: checkError } = await supabase
+                .from('vote')
+                .select(`
+                    vote_id,
+                    contest!inner(
+                        election_id
+                    )
+                `)
+                .eq('voter_id', voterData.voter_id)
+                .eq('contest.election_id', this.currentElection.election_id);
+
+            if (checkError) {
+                console.error('Vote check error:', checkError);
+                // Continue anyway, the database constraint will prevent duplicate votes
+            }
+
+            if (existingVotes && existingVotes.length > 0) {
                 Utils.showToast('You have already voted in this election', 'error');
                 this.cancelVoting();
                 return;
             }
 
+            // Get the contest_id for this election and candidate
+            console.log('Looking up contest for election:', this.currentElection.election_id, 'candidate:', this.selectedCandidate);
+            
+            // First, let's check what contests exist for this election
+            const { data: allContests, error: allContestsError } = await supabase
+                .from('contest')
+                .select('*')
+                .eq('election_id', this.currentElection.election_id);
+            
+            console.log('All contests for this election:', allContests);
+            
+            const { data: contestData, error: contestError } = await supabase
+                .from('contest')
+                .select('contest_id')
+                .eq('election_id', this.currentElection.election_id)
+                .eq('candidate_id', parseInt(this.selectedCandidate, 10))
+                .single();
+
+            console.log('Contest lookup result:', { contestData, contestError });
+
+            if (contestError) {
+                console.error('Contest lookup error:', contestError);
+                
+                // Try to create the contest entry if it doesn't exist
+                console.log('Attempting to create contest entry...');
+                const { data: newContest, error: createError } = await supabase
+                    .from('contest')
+                    .insert([{
+                        election_id: this.currentElection.election_id,
+                        candidate_id: parseInt(this.selectedCandidate, 10),
+                        position: 'Candidate'
+                    }])
+                    .select()
+                    .single();
+                
+                if (createError) {
+                    console.error('Failed to create contest entry:', createError);
+                    throw new Error(`Unable to find or create contest entry for this candidate. Please contact administrator.`);
+                }
+                
+                console.log('Created new contest entry:', newContest);
+                contestData = newContest;
+            }
+
+            if (!contestData) {
+                throw new Error('Contest entry not found for this candidate and election');
+            }
+
             // Cast the vote
-            const { error: voteError } = await supabase
-                .from(CONFIG.TABLES.VOTES)
+            console.log('Inserting vote with contest_id:', contestData.contest_id, 'voter_id:', voterData.voter_id);
+            const { data: voteResult, error: voteError } = await supabase
+                .from('vote')
                 .insert([{
-                    election_id: this.currentElection.id,
-                    candidate_id: this.selectedCandidate,
-                    voter_id: voterData.id,
+                    contest_id: contestData.contest_id,
+                    voter_id: voterData.voter_id,
                     vote_timestamp: new Date().toISOString(),
                     ip_address: await this.getClientIP()
-                }]);
+                }])
+                .select();
 
-            if (voteError) throw voteError;
+            console.log('Vote insertion result:', { voteResult, voteError });
 
-            // Update voter's last vote date
+            if (voteError) {
+                console.error('Vote insertion error details:', voteError);
+                throw voteError;
+            }
+
+            // Update voter's last vote date (if this field exists)
             await supabase
-                .from(CONFIG.TABLES.VOTERS)
-                .update({ last_vote_date: new Date().toISOString() })
-                .eq('id', voterData.id);
+                .from('voter')
+                .update({ updated_at: new Date().toISOString() })
+                .eq('voter_id', voterData.voter_id);
 
             this.showVoteSuccessMessage();
             
         } catch (error) {
             console.error('Error casting vote:', error);
-            Utils.showToast('Error casting vote. Please try again.', 'error');
+            console.error('Error details:', {
+                message: error.message,
+                code: error.code,
+                details: error.details,
+                hint: error.hint
+            });
+            Utils.showToast('Error casting vote: ' + error.message, 'error');
         } finally {
             Utils.hideLoading();
         }
@@ -365,7 +528,7 @@ class Voting {
     // Show confirmation dialog
     showConfirmationDialog() {
         return new Promise((resolve) => {
-            const selectedCandidate = this.currentCandidates.find(c => c.id === this.selectedCandidate);
+            const selectedCandidate = this.currentCandidates.find(c => c.candidate_id === this.selectedCandidate);
             
             const confirmationHTML = `
                 <div class="vote-confirmation">
@@ -373,11 +536,11 @@ class Voting {
                     <div class="confirmation-candidate">
                         <div class="candidate-info">
                             ${selectedCandidate.photo_url ? 
-                                `<img src="${selectedCandidate.photo_url}" alt="${selectedCandidate.name}" class="candidate-photo">` :
+                                `<img src="${selectedCandidate.photo_url}" alt="${selectedCandidate.full_name}" class="candidate-photo">` :
                                 `<div class="candidate-placeholder"><i class="fas fa-user"></i></div>`
                             }
                             <div>
-                                <h4>${Utils.sanitizeHtml(selectedCandidate.name)}</h4>
+                                <h4>${Utils.sanitizeHtml(selectedCandidate.full_name)}</h4>
                                 <p>${Utils.sanitizeHtml(selectedCandidate.party || 'Independent')}</p>
                             </div>
                         </div>
@@ -418,7 +581,7 @@ class Voting {
 
     // Show vote success message
     showVoteSuccessMessage() {
-        const selectedCandidate = this.currentCandidates.find(c => c.id === this.selectedCandidate);
+        const selectedCandidate = this.currentCandidates.find(c => c.candidate_id === this.selectedCandidate);
         
         const content = document.getElementById('votingContent');
         content.innerHTML = `
@@ -433,11 +596,11 @@ class Voting {
                     <h3>Vote Summary</h3>
                     <div class="voted-candidate">
                         ${selectedCandidate.photo_url ? 
-                            `<img src="${selectedCandidate.photo_url}" alt="${selectedCandidate.name}" class="candidate-photo">` :
+                            `<img src="${selectedCandidate.photo_url}" alt="${selectedCandidate.full_name}" class="candidate-photo">` :
                             `<div class="candidate-placeholder"><i class="fas fa-user"></i></div>`
                         }
                         <div class="candidate-details">
-                            <h4>${Utils.sanitizeHtml(selectedCandidate.name)}</h4>
+                            <h4>${Utils.sanitizeHtml(selectedCandidate.full_name)}</h4>
                             <p>${Utils.sanitizeHtml(selectedCandidate.party || 'Independent')}</p>
                         </div>
                     </div>
@@ -447,7 +610,7 @@ class Voting {
                 </div>
 
                 <div class="success-actions">
-                    <button class="btn btn-outline" onclick="window.Elections.viewElectionResults('${this.currentElection.id}')">
+                    <button class="btn btn-outline" onclick="window.Elections.viewElectionResults('${this.currentElection.election_id}')">
                         <i class="fas fa-chart-bar"></i> View Results
                     </button>
                     <button class="btn btn-primary" onclick="window.Voting.finishVoting()">

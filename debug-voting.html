@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voting Debug Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .result { margin: 10px 0; padding: 10px; background: #f5f5f5; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e9; color: #2e7d32; }
+        button { padding: 10px 15px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Voting System Debug</h1>
+    
+    <div class="test-section">
+        <h2>1. Test Database Connection</h2>
+        <button onclick="testDB()">Test Database</button>
+        <div id="db-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Check Elections</h2>
+        <button onclick="checkElections()">Check Elections</button>
+        <div id="elections-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Check Candidates and Contests</h2>
+        <button onclick="checkCandidatesAndContests()">Check Candidates & Contests</button>
+        <div id="candidates-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Test Voting Process</h2>
+        <p>Enter test voter email: <input type="email" id="testEmail" value="john@example.com"></p>
+        <p>Select election ID: <input type="number" id="testElectionId" value="301"></p>
+        <p>Select candidate ID: <input type="number" id="testCandidateId" value="201"></p>
+        <button onclick="testVotingProcess()">Test Vote Submission</button>
+        <div id="voting-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>5. Check Existing Votes</h2>
+        <button onclick="checkVotes()">Check All Votes</button>
+        <div id="votes-result" class="result"></div>
+    </div>
+
+    <script>
+        async function testDB() {
+            const result = document.getElementById('db-result');
+            try {
+                const { data, error } = await supabase.from('election').select('count');
+                if (error) throw error;
+                result.innerHTML = '<div class="success">✓ Database connection successful</div>';
+            } catch (err) {
+                result.innerHTML = `<div class="error">✗ Database error: ${err.message}</div>`;
+            }
+        }
+
+        async function checkElections() {
+            const result = document.getElementById('elections-result');
+            try {
+                const { data, error } = await supabase.from('election').select('*');
+                if (error) throw error;
+                result.innerHTML = `<div class="success">✓ Found ${data.length} elections</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (err) {
+                result.innerHTML = `<div class="error">✗ Error: ${err.message}</div>`;
+            }
+        }
+
+        async function checkCandidatesAndContests() {
+            const result = document.getElementById('candidates-result');
+            try {
+                // Check candidates
+                const { data: candidates, error: candError } = await supabase.from('candidate').select('*');
+                if (candError) throw candError;
+
+                // Check contests
+                const { data: contests, error: contError } = await supabase.from('contest').select('*');
+                if (contError) throw contError;
+
+                result.innerHTML = `
+                    <div class="success">✓ Found ${candidates.length} candidates and ${contests.length} contests</div>
+                    <h4>Candidates:</h4><pre>${JSON.stringify(candidates, null, 2)}</pre>
+                    <h4>Contests:</h4><pre>${JSON.stringify(contests, null, 2)}</pre>
+                `;
+            } catch (err) {
+                result.innerHTML = `<div class="error">✗ Error: ${err.message}</div>`;
+            }
+        }
+
+        async function testVotingProcess() {
+            const result = document.getElementById('voting-result');
+            const email = document.getElementById('testEmail').value;
+            const electionId = document.getElementById('testElectionId').value;
+            const candidateId = document.getElementById('testCandidateId').value;
+
+            try {
+                result.innerHTML = '<div>Testing voting process...</div>';
+
+                // Step 1: Get voter
+                const { data: voter, error: voterError } = await supabase
+                    .from('voter')
+                    .select('*')
+                    .eq('email', email)
+                    .single();
+
+                if (voterError) {
+                    result.innerHTML += `<div class="error">✗ Voter lookup failed: ${voterError.message}</div>`;
+                    return;
+                }
+
+                result.innerHTML += `<div class="success">✓ Found voter: ${voter.full_name}</div>`;
+
+                // Step 2: Check if contest exists for this election and candidate
+                const { data: contest, error: contestError } = await supabase
+                    .from('contest')
+                    .select('*')
+                    .eq('election_id', electionId)
+                    .eq('candidate_id', candidateId)
+                    .single();
+
+                if (contestError) {
+                    result.innerHTML += `<div class="error">✗ Contest lookup failed: ${contestError.message}</div>`;
+                    return;
+                }
+
+                result.innerHTML += `<div class="success">✓ Found contest: ${contest.contest_id}</div>`;
+
+                // Step 3: Check for existing vote
+                const { data: existingVotes, error: voteCheckError } = await supabase
+                    .from('vote')
+                    .select('*, contest!inner(election_id)')
+                    .eq('voter_id', voter.voter_id)
+                    .eq('contest.election_id', electionId);
+
+                if (voteCheckError) {
+                    result.innerHTML += `<div class="error">✗ Vote check failed: ${voteCheckError.message}</div>`;
+                    return;
+                }
+
+                if (existingVotes && existingVotes.length > 0) {
+                    result.innerHTML += `<div class="error">✗ Voter has already voted in this election</div>`;
+                    return;
+                }
+
+                result.innerHTML += `<div class="success">✓ No existing vote found - can proceed</div>`;
+
+                // Step 4: Try to cast vote
+                const { data: voteData, error: voteError } = await supabase
+                    .from('vote')
+                    .insert([{
+                        contest_id: contest.contest_id,
+                        voter_id: voter.voter_id,
+                        vote_timestamp: new Date().toISOString(),
+                        ip_address: '127.0.0.1'
+                    }])
+                    .select();
+
+                if (voteError) {
+                    result.innerHTML += `<div class="error">✗ Vote insertion failed: ${voteError.message}</div>`;
+                    return;
+                }
+
+                result.innerHTML += `<div class="success">✓ Vote cast successfully! Vote ID: ${voteData[0].vote_id}</div>`;
+
+            } catch (err) {
+                result.innerHTML += `<div class="error">✗ Unexpected error: ${err.message}</div>`;
+            }
+        }
+
+        async function checkVotes() {
+            const result = document.getElementById('votes-result');
+            try {
+                const { data, error } = await supabase
+                    .from('vote')
+                    .select(`
+                        *,
+                        contest(
+                            *,
+                            election(name),
+                            candidate(full_name)
+                        ),
+                        voter(full_name, email)
+                    `);
+                if (error) throw error;
+                result.innerHTML = `<div class="success">✓ Found ${data.length} votes</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (err) {
+                result.innerHTML = `<div class="error">✗ Error: ${err.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

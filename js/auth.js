@@ -213,11 +213,8 @@ class Auth {
             // Update UI to show logout button and hide login/register buttons
             this.updateUIForAuthenticatedUser();
             
-            if (userType === 'admin') {
-                this.showAdminDashboard();
-            } else {
-                this.showVoterDashboard();
-            }
+            // Show dashboard-style interface instead of specialized dashboards
+            this.showDashboardInterface(userType);
 
             Utils.showToast(`Welcome back, ${userData.full_name}!`, 'success');
 
@@ -341,10 +338,46 @@ class Auth {
         // Clear session storage
         Utils.sessionStorage.clear();
         
+        // Restore normal navigation
+        this.restoreNormalNavigation();
+        
+        // Hide dashboard sections and show normal sections
+        const dashboardSection = document.getElementById('dashboard-home-section');
+        if (dashboardSection) {
+            dashboardSection.style.display = 'none';
+        }
+        
         this.updateUIForUnauthenticatedUser();
         this.showMainInterface();
         
         Utils.showToast('You have been logged out', 'info');
+    }
+
+    // Restore normal navigation
+    restoreNormalNavigation() {
+        const navMenu = document.getElementById('navMenu');
+        if (!navMenu) return;
+
+        // Hide dashboard navigation
+        const dashboardNav = document.getElementById('dashboardNav');
+        if (dashboardNav) {
+            dashboardNav.style.display = 'none';
+        }
+        
+        // Show original navigation links
+        const navLinks = navMenu.querySelectorAll('.nav-link');
+        navLinks.forEach(link => {
+            if (!link.closest('#dashboardNav')) {
+                link.style.display = '';
+            }
+        });
+        
+        // Reset active states
+        navLinks.forEach(link => link.classList.remove('active'));
+        const homeLink = navMenu.querySelector('a[href="#home"]');
+        if (homeLink) {
+            homeLink.classList.add('active');
+        }
     }
 
     // Sign out
@@ -468,36 +501,307 @@ class Auth {
         document.getElementById('userInfo').style.display = 'none';
     }
 
-    // Show admin dashboard
-    showAdminDashboard() {
-        document.getElementById('mainContent').style.display = 'none';
-        document.getElementById('adminDashboard').style.display = 'block';
+    // Show dashboard interface (modified main content with dashboard navigation)
+    showDashboardInterface(userType) {
+        // Keep main content visible but modify navigation
+        document.getElementById('mainContent').style.display = 'block';
+        document.getElementById('adminDashboard').style.display = 'none';
         document.getElementById('voterDashboard').style.display = 'none';
         
-        // Ensure Admin is initialized and load dashboard
-        if (!window.Admin) {
-            window.Admin = new Admin();
+        // Update navigation to dashboard style
+        this.updateNavigationForDashboard(userType);
+        
+        // Show home section with dashboard content
+        this.showDashboardHome(userType);
+    }
+
+    // Update navigation for dashboard mode
+    updateNavigationForDashboard(userType) {
+        const navMenu = document.getElementById('navMenu');
+        if (!navMenu) return;
+
+        // Find the nav links container
+        const navLinks = navMenu.querySelectorAll('.nav-link');
+        
+        // Hide original navigation links
+        navLinks.forEach(link => {
+            link.style.display = 'none';
+        });
+        
+        // Add dashboard navigation
+        let dashboardNav = document.getElementById('dashboardNav');
+        if (!dashboardNav) {
+            dashboardNav = document.createElement('div');
+            dashboardNav.id = 'dashboardNav';
+            dashboardNav.className = 'dashboard-nav';
+            
+            if (userType === 'admin') {
+                dashboardNav.innerHTML = `
+                    <a href="#dashboard-home" class="nav-link active" onclick="showDashboardSection('home')">Dashboard</a>
+                    <a href="#manage-elections" class="nav-link" onclick="showDashboardSection('elections')">Manage Elections</a>
+                    <a href="#manage-candidates" class="nav-link" onclick="showDashboardSection('candidates')">Manage Candidates</a>
+                    <a href="#manage-voters" class="nav-link" onclick="showDashboardSection('voters')">Manage Voters</a>
+                    <a href="#view-results" class="nav-link" onclick="showDashboardSection('results')">View Results</a>
+                `;
+            } else {
+                dashboardNav.innerHTML = `
+                    <a href="#dashboard-home" class="nav-link active" onclick="showDashboardSection('home')">Dashboard</a>
+                    <a href="#available-elections" class="nav-link" onclick="showDashboardSection('elections')">Elections</a>
+                    <a href="#my-votes" class="nav-link" onclick="showDashboardSection('my-votes')">My Votes</a>
+                    <a href="#election-results" class="nav-link" onclick="showDashboardSection('results')">Results</a>
+                    <a href="#my-profile" class="nav-link" onclick="showDashboardSection('profile')">Profile</a>
+                `;
+            }
+            
+            // Insert before auth buttons
+            const authButtons = navMenu.querySelector('.auth-buttons');
+            navMenu.insertBefore(dashboardNav, authButtons);
         }
         
-        // Load admin content with a small delay to ensure DOM is ready
-        setTimeout(() => {
-            if (window.Admin) {
-                window.Admin.loadDashboard();
-            }
-        }, 100);
+        dashboardNav.style.display = 'flex';
     }
 
-    // Show voter dashboard
-    showVoterDashboard() {
-        document.getElementById('mainContent').style.display = 'none';
-        document.getElementById('adminDashboard').style.display = 'none';
-        document.getElementById('voterDashboard').style.display = 'block';
+    // Show dashboard home content
+    showDashboardHome(userType) {
+        // Hide all existing sections
+        document.querySelectorAll('#mainContent .section').forEach(section => {
+            section.style.display = 'none';
+        });
         
-        // Load voter content
-        this.loadVoterDashboard();
+        // Show or create dashboard home section
+        let dashboardHomeSection = document.getElementById('dashboard-home-section');
+        if (!dashboardHomeSection) {
+            dashboardHomeSection = document.createElement('section');
+            dashboardHomeSection.id = 'dashboard-home-section';
+            dashboardHomeSection.className = 'section active';
+            document.getElementById('mainContent').appendChild(dashboardHomeSection);
+        }
+        
+        dashboardHomeSection.style.display = 'block';
+        
+        if (userType === 'admin') {
+            this.loadAdminDashboardHome(dashboardHomeSection);
+        } else {
+            this.loadVoterDashboardHome(dashboardHomeSection);
+        }
     }
 
-    // Show main interface
+    // Load admin dashboard home content
+    loadAdminDashboardHome(container) {
+        container.innerHTML = `
+            <div class="dashboard-home">
+                <div class="dashboard-header">
+                    <h1>Admin Dashboard</h1>
+                    <p>Welcome back, ${this.currentUser.full_name}! Manage your elections and oversee the voting process.</p>
+                </div>
+                
+                <div class="dashboard-stats" id="adminStats">
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-vote-yea"></i></div>
+                        <div class="stat-info">
+                            <h3 id="totalElections">-</h3>
+                            <p>Total Elections</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-users"></i></div>
+                        <div class="stat-info">
+                            <h3 id="totalCandidates">-</h3>
+                            <p>Total Candidates</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-user-check"></i></div>
+                        <div class="stat-info">
+                            <h3 id="totalVoters">-</h3>
+                            <p>Registered Voters</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-chart-bar"></i></div>
+                        <div class="stat-info">
+                            <h3 id="totalVotes">-</h3>
+                            <p>Total Votes Cast</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="dashboard-actions">
+                    <div class="action-grid">
+                        <div class="action-card" onclick="showDashboardSection('elections')">
+                            <i class="fas fa-plus-circle"></i>
+                            <h3>Create Election</h3>
+                            <p>Set up new elections and manage existing ones</p>
+                        </div>
+                        <div class="action-card" onclick="showDashboardSection('candidates')">
+                            <i class="fas fa-user-plus"></i>
+                            <h3>Manage Candidates</h3>
+                            <p>Review and approve candidate applications</p>
+                        </div>
+                        <div class="action-card" onclick="showDashboardSection('voters')">
+                            <i class="fas fa-user-check"></i>
+                            <h3>Verify Voters</h3>
+                            <p>Review and verify voter registrations</p>
+                        </div>
+                        <div class="action-card" onclick="showDashboardSection('results')">
+                            <i class="fas fa-chart-line"></i>
+                            <h3>View Results</h3>
+                            <p>Monitor election results and analytics</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Load stats
+        this.loadAdminStats();
+    }
+
+    // Load voter dashboard home content  
+    loadVoterDashboardHome(container) {
+        container.innerHTML = `
+            <div class="dashboard-home">
+                <div class="dashboard-header">
+                    <h1>Voter Dashboard</h1>
+                    <p>Welcome back, ${this.currentUser.full_name}! Stay informed and participate in elections.</p>
+                </div>
+                
+                <div class="dashboard-stats" id="voterStats">
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-vote-yea"></i></div>
+                        <div class="stat-info">
+                            <h3 id="availableElections">-</h3>
+                            <p>Available Elections</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                        <div class="stat-info">
+                            <h3 id="myVotes">-</h3>
+                            <p>Votes Cast</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                        <div class="stat-info">
+                            <h3 id="upcomingElections">-</h3>
+                            <p>Upcoming Elections</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-chart-bar"></i></div>
+                        <div class="stat-info">
+                            <h3 id="completedElections">-</h3>
+                            <p>Completed Elections</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="dashboard-actions">
+                    <div class="action-grid">
+                        <div class="action-card" onclick="showDashboardSection('elections')">
+                            <i class="fas fa-vote-yea"></i>
+                            <h3>Vote Now</h3>
+                            <p>Participate in available elections</p>
+                        </div>
+                        <div class="action-card" onclick="showDashboardSection('my-votes')">
+                            <i class="fas fa-history"></i>
+                            <h3>My Voting History</h3>
+                            <p>View your past voting activity</p>
+                        </div>
+                        <div class="action-card" onclick="showDashboardSection('results')">
+                            <i class="fas fa-chart-pie"></i>
+                            <h3>Election Results</h3>
+                            <p>View results of completed elections</p>
+                        </div>
+                        <div class="action-card" onclick="showDashboardSection('profile')">
+                            <i class="fas fa-user-edit"></i>
+                            <h3>Update Profile</h3>
+                            <p>Manage your account information</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="recent-activity" id="recentActivity">
+                    <h2>Recent Activity</h2>
+                    <div id="activityList">
+                        <p>Loading recent activity...</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Load stats
+        this.loadVoterStats();
+    }
+
+    // Load admin statistics
+    async loadAdminStats() {
+        try {
+            const [electionsRes, candidatesRes, votersRes, votesRes] = await Promise.all([
+                supabase.from('election').select('*', { count: 'exact' }),
+                supabase.from('candidate').select('*', { count: 'exact' }),
+                supabase.from('voter').select('*', { count: 'exact' }),
+                supabase.from('vote').select('*', { count: 'exact' })
+            ]);
+
+            document.getElementById('totalElections').textContent = electionsRes.count || 0;
+            document.getElementById('totalCandidates').textContent = candidatesRes.count || 0;
+            document.getElementById('totalVoters').textContent = votersRes.count || 0;
+            document.getElementById('totalVotes').textContent = votesRes.count || 0;
+        } catch (error) {
+            console.error('Error loading admin stats:', error);
+        }
+    }
+
+    // Load voter statistics
+    async loadVoterStats() {
+        try {
+            const voterEmail = this.currentUser.email;
+            
+            const [electionsRes, voterRes, votesRes] = await Promise.all([
+                supabase.from('election').select('*').eq('is_active', 'Y'),
+                supabase.from('voter').select('*').eq('email', voterEmail).single(),
+                supabase.from('vote').select('*, contest!inner(election_id)').eq('voter_id', voterRes?.data?.voter_id || 0)
+            ]);
+
+            const now = new Date();
+            const upcomingCount = electionsRes.data?.filter(e => new Date(e.election_date) > now).length || 0;
+            const completedCount = electionsRes.data?.filter(e => new Date(e.election_date) <= now).length || 0;
+
+            document.getElementById('availableElections').textContent = electionsRes.data?.length || 0;
+            document.getElementById('myVotes').textContent = votesRes.data?.length || 0;
+            document.getElementById('upcomingElections').textContent = upcomingCount;
+            document.getElementById('completedElections').textContent = completedCount;
+            
+            // Load recent activity
+            this.loadRecentActivity(votesRes.data || []);
+        } catch (error) {
+            console.error('Error loading voter stats:', error);
+        }
+    }
+
+    // Load recent activity for voter
+    loadRecentActivity(votes) {
+        const activityList = document.getElementById('activityList');
+        if (!activityList) return;
+
+        if (votes.length === 0) {
+            activityList.innerHTML = '<p>No recent voting activity.</p>';
+            return;
+        }
+
+        const recentVotes = votes.slice(-5).reverse(); // Last 5 votes
+        activityList.innerHTML = recentVotes.map(vote => `
+            <div class="activity-item">
+                <i class="fas fa-vote-yea"></i>
+                <div class="activity-content">
+                    <p>Voted in election</p>
+                    <span class="activity-date">${new Date(vote.vote_timestamp).toLocaleDateString()}</span>
+                </div>
+            </div>
+        `).join('');
+    }
     showMainInterface() {
         document.getElementById('mainContent').style.display = 'block';
         document.getElementById('adminDashboard').style.display = 'none';
@@ -1175,6 +1479,105 @@ function switchToLogin() {
     window.Auth.clearPasswordFields();
     document.getElementById('loginForm').style.display = 'block';
     document.getElementById('registerForm').style.display = 'none';
+}
+
+// Global function to handle dashboard section switching
+function showDashboardSection(section) {
+    if (!window.Auth || !window.Auth.isAuthenticated()) {
+        return;
+    }
+
+    const userType = window.Auth.getUserRole();
+    
+    // Update navigation active states
+    const dashboardNav = document.getElementById('dashboardNav');
+    if (dashboardNav) {
+        dashboardNav.querySelectorAll('.nav-link').forEach(link => {
+            link.classList.remove('active');
+        });
+        
+        const activeLink = dashboardNav.querySelector(`[onclick*="${section}"]`);
+        if (activeLink) {
+            activeLink.classList.add('active');
+        }
+    }
+
+    // Hide all sections first
+    document.querySelectorAll('#mainContent .section').forEach(sec => {
+        sec.style.display = 'none';
+        sec.classList.remove('active');
+    });
+
+    // Hide dashboard home
+    const dashboardHome = document.getElementById('dashboard-home-section');
+    if (dashboardHome) {
+        dashboardHome.style.display = 'none';
+    }
+
+    // Show appropriate section based on dashboard type and user role
+    switch (section) {
+        case 'home':
+            if (dashboardHome) {
+                dashboardHome.style.display = 'block';
+            } else {
+                window.Auth.showDashboardHome(userType);
+            }
+            break;
+        case 'elections':
+            if (userType === 'admin') {
+                // Show admin dashboard for managing elections
+                document.getElementById('adminDashboard').style.display = 'block';
+                document.getElementById('mainContent').style.display = 'none';
+                if (window.Admin) {
+                    window.Admin.showTab('elections');
+                }
+            } else {
+                // Show elections section for voters
+                const electionsSection = document.getElementById('elections');
+                if (electionsSection) {
+                    electionsSection.style.display = 'block';
+                    electionsSection.classList.add('active');
+                    if (window.Elections) {
+                        window.Elections.loadElections();
+                    }
+                }
+            }
+            break;
+        case 'candidates':
+            document.getElementById('adminDashboard').style.display = 'block';
+            document.getElementById('mainContent').style.display = 'none';
+            if (window.Admin) {
+                window.Admin.showTab('candidates');
+            }
+            break;
+        case 'voters':
+            document.getElementById('adminDashboard').style.display = 'block';
+            document.getElementById('mainContent').style.display = 'none';
+            if (window.Admin) {
+                window.Admin.showTab('voters');
+            }
+            break;
+        case 'results':
+            const resultsSection = document.getElementById('results');
+            if (resultsSection) {
+                resultsSection.style.display = 'block';
+                resultsSection.classList.add('active');
+                if (window.Elections) {
+                    window.Elections.loadResults();
+                }
+            }
+            break;
+        case 'my-votes':
+            // Show voter's voting history
+            window.Auth.showMyVotes();
+            break;
+        case 'profile':
+            // Show user profile
+            if (window.Auth.currentUser) {
+                showUserProfile();
+            }
+            break;
+    }
 }
 
 // Initialize auth when DOM is loaded

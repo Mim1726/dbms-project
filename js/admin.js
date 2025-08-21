@@ -1019,6 +1019,12 @@ class Admin {
                     throw error;
                 }
             } else {
+                // Update candidate status to approved
+                await supabase
+                    .from('candidate')
+                    .update({ status: 'approved' })
+                    .eq('candidate_id', candidateId);
+                    
                 Utils.showToast(`Candidate approved and added to "${elections[0].name}"!`, 'success');
             }
             
