@@ -705,6 +705,16 @@ class Auth {
         
         // Load stats
         this.loadAdminStats();
+        // Fallback: retry stats update after short delay if numbers are not set
+        setTimeout(() => {
+            const elections = document.getElementById('totalElections').textContent;
+            const candidates = document.getElementById('totalCandidates').textContent;
+            const voters = document.getElementById('totalVoters').textContent;
+            const votes = document.getElementById('totalVotes').textContent;
+            if ([elections, candidates, voters, votes].some(val => val === '-' || val === '' || val === 'NaN')) {
+                this.loadAdminStats();
+            }
+        }, 1000);
     }
 
     // Load voter dashboard home content  
@@ -793,6 +803,20 @@ class Auth {
     // Load admin statistics
     async loadAdminStats() {
         try {
+            console.log('Loading admin stats...');
+            
+            // Check if elements exist
+            const electionsEl = document.getElementById('totalElections');
+            const candidatesEl = document.getElementById('totalCandidates');
+            const votersEl = document.getElementById('totalVoters');
+            const votesEl = document.getElementById('totalVotes');
+            
+            if (!electionsEl || !candidatesEl || !votersEl || !votesEl) {
+                console.error('Admin stats elements not found in DOM');
+                setTimeout(() => this.loadAdminStats(), 500); // Retry after 500ms
+                return;
+            }
+            
             const [electionsRes, candidatesRes, votersRes, votesRes] = await Promise.all([
                 supabase.from('election').select('*', { count: 'exact' }),
                 supabase.from('candidate').select('*', { count: 'exact' }),
@@ -800,12 +824,33 @@ class Auth {
                 supabase.from('vote').select('*', { count: 'exact' })
             ]);
 
-            document.getElementById('totalElections').textContent = electionsRes.count || 0;
-            document.getElementById('totalCandidates').textContent = candidatesRes.count || 0;
-            document.getElementById('totalVoters').textContent = votersRes.count || 0;
-            document.getElementById('totalVotes').textContent = votesRes.count || 0;
+            console.log('Admin stats results:', { electionsRes, candidatesRes, votersRes, votesRes });
+
+            if (electionsRes.error || candidatesRes.error || votersRes.error || votesRes.error) {
+                console.error('Error in admin stats queries:', { 
+                    electionsError: electionsRes.error,
+                    candidatesError: candidatesRes.error, 
+                    votersError: votersRes.error,
+                    votesError: votesRes.error
+                });
+                Utils.showToast('Error loading admin dashboard stats', 'error');
+                return;
+            }
+
+            electionsEl.textContent = electionsRes.count || 0;
+            candidatesEl.textContent = candidatesRes.count || 0;
+            votersEl.textContent = votersRes.count || 0;
+            votesEl.textContent = votesRes.count || 0;
+            
+            console.log('Admin stats updated successfully:', {
+                elections: electionsRes.count,
+                candidates: candidatesRes.count,
+                voters: votersRes.count,
+                votes: votesRes.count
+            });
         } catch (error) {
             console.error('Error loading admin stats:', error);
+            Utils.showToast('Unexpected error loading admin stats', 'error');
         }
     }
 

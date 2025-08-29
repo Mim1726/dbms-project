@@ -264,7 +264,7 @@ class Admin {
                 <div class="modal-content" style="max-width: 600px;">
                     <div class="modal-header">
                         <h2><i class="fas fa-plus-circle"></i> Create New Election</h2>
-                        <span class="close" onclick="this.closeCreateElectionModal()">&times;</span>
+                        <span class="close" onclick="window.Admin.closeCreateElectionModal()">&times;</span>
                     </div>
                     <div class="modal-body">
                         <form id="createElectionModalForm">
