@@ -1,3 +1,16 @@
+// Helper to show election from vote card
+window.showElectionFromVote = function(electionId) {
+    showDashboardSection('elections');
+    setTimeout(() => {
+        // Try to highlight the election card
+        const card = document.querySelector(`.election-card[data-election-id='${electionId}']`);
+        if (card) {
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            card.classList.add('highlighted');
+            setTimeout(() => card.classList.remove('highlighted'), 2000);
+        }
+    }, 500);
+};
 // Elections Module - Fixed Version
 class Elections {
     constructor() {
@@ -153,7 +166,7 @@ class Elections {
         const candidateCount = election.candidates ? election.candidates.length : 0;
         
         const card = `
-            <div class="election-card ${category}">
+            <div class="election-card ${category}" data-election-id="${election.election_id}">
                 <div class="election-header">
                     <h3>${Utils.sanitizeHtml(election.name || election.title)}</h3>
                     <span class="election-status status-${status.toLowerCase()}">${status}</span>

@@ -742,7 +742,7 @@ class Auth {
                         <div class="stat-icon"><i class="fas fa-chart-bar"></i></div>
                         <div class="stat-info">
                             <h3 id="completedElections">-</h3>
-                            <p>Completed Elections</p>
+                            <p>Past Elections</p>
                         </div>
                     </div>
                 </div>
@@ -778,6 +778,16 @@ class Auth {
         
         // Load stats
         this.loadVoterStats();
+        // Fallback: retry stats update after short delay if numbers are not set
+        setTimeout(() => {
+            const available = document.getElementById('availableElections').textContent;
+            const votes = document.getElementById('myVotes').textContent;
+            const upcoming = document.getElementById('upcomingElections').textContent;
+            const completed = document.getElementById('completedElections').textContent;
+            if ([available, votes, upcoming, completed].some(val => val === '-' || val === '' || val === 'NaN')) {
+                this.loadVoterStats();
+            }
+        }, 1000);
     }
 
     // Load admin statistics
@@ -802,26 +812,64 @@ class Auth {
     // Load voter statistics
     async loadVoterStats() {
         try {
-            const voterEmail = this.currentUser.email;
-            
-            const [electionsRes, voterRes, votesRes] = await Promise.all([
-                supabase.from('election').select('*').eq('is_active', 'Y'),
-                supabase.from('voter').select('*').eq('email', voterEmail).single(),
-                supabase.from('vote').select('*, contest!inner(election_id)').eq('voter_id', voterRes?.data?.voter_id || 0)
+            const voterEmail = this.currentUser?.email;
+            if (!voterEmail) {
+                document.getElementById('availableElections').textContent = '-';
+                document.getElementById('myVotes').textContent = '-';
+                document.getElementById('upcomingElections').textContent = '-';
+                document.getElementById('completedElections').textContent = '-';
+                Utils.showToast('Voter not authenticated. Please log in again.', 'error');
+                return;
+            }
+            // Fetch voter first
+            const voterRes = await supabase.from('voter').select('*').eq('email', voterEmail).single();
+            if (!voterRes.data || !voterRes.data.voter_id) {
+                document.getElementById('availableElections').textContent = '-';
+                document.getElementById('myVotes').textContent = '-';
+                document.getElementById('upcomingElections').textContent = '-';
+                document.getElementById('completedElections').textContent = '-';
+                Utils.showToast('Voter record not found. Please contact admin.', 'error');
+                return;
+            }
+            // Fetch elections and votes in parallel
+            const [allElectionsRes, votesRes] = await Promise.all([
+                supabase.from('election').select('*'),
+                supabase.from('vote').select('*, contest!inner(election_id)').eq('voter_id', voterRes.data.voter_id)
             ]);
 
-            const now = new Date();
-            const upcomingCount = electionsRes.data?.filter(e => new Date(e.election_date) > now).length || 0;
-            const completedCount = electionsRes.data?.filter(e => new Date(e.election_date) <= now).length || 0;
+            console.log('Elections:', allElectionsRes);
+            console.log('Voter:', voterRes);
+            console.log('Votes:', votesRes);
 
-            document.getElementById('availableElections').textContent = electionsRes.data?.length || 0;
+            if (allElectionsRes.error || votesRes.error) {
+                document.getElementById('availableElections').textContent = '-';
+                document.getElementById('myVotes').textContent = '-';
+                document.getElementById('upcomingElections').textContent = '-';
+                document.getElementById('completedElections').textContent = '-';
+                Utils.showToast('Error loading dashboard stats. Check Supabase connection and data.', 'error');
+                return;
+            }
+
+            const now = new Date();
+            const allElections = allElectionsRes.data || [];
+            // Available elections should show ongoing elections (active and happening now/soon)
+            const ongoingCount = allElections.filter(e => e.is_active === 'Y' && new Date(e.election_date) <= now).length;
+            const upcomingCount = allElections.filter(e => new Date(e.election_date) > now).length;
+            const completedCount = allElections.filter(e => new Date(e.election_date) <= now).length;
+
+            document.getElementById('availableElections').textContent = ongoingCount;
             document.getElementById('myVotes').textContent = votesRes.data?.length || 0;
             document.getElementById('upcomingElections').textContent = upcomingCount;
             document.getElementById('completedElections').textContent = completedCount;
-            
+
             // Load recent activity
             this.loadRecentActivity(votesRes.data || []);
         } catch (error) {
+            document.getElementById('availableElections').textContent = '-';
+            document.getElementById('myVotes').textContent = '-';
+            document.getElementById('upcomingElections').textContent = '-';
+            document.getElementById('completedElections').textContent = '-';
+            Utils.showToast('Unexpected error loading dashboard stats. See console for details.', 'error');
             console.error('Error loading voter stats:', error);
         }
     }
@@ -1277,7 +1325,7 @@ class Auth {
                 const contest = vote.contest;
                 const candidate = contest?.candidate;
                 const election = contest?.election;
-                
+                const electionId = election?.election_id;
                 return `
                     <div class="vote-card">
                         <div class="vote-header">
@@ -1304,6 +1352,11 @@ class Auth {
                                 <label>Vote Time:</label>
                                 <span>${new Date(vote.vote_timestamp).toLocaleString()}</span>
                             </div>
+                        </div>
+                        <div class="vote-actions" style="margin-top: 12px; text-align: right;">
+                            <button class="btn btn-info" onclick="window.showElectionFromVote('${electionId}')">
+                                <i class='fas fa-eye'></i> View Election
+                            </button>
                         </div>
                     </div>
                 `;
