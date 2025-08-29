@@ -8,15 +8,35 @@ class Auth {
 
     // Initialize authentication
     async init() {
-        // Check for existing session
-        const { data: { session } } = await supabase.auth.getSession();
+        // Check for existing session from sessionStorage first
+        const storedUser = Utils.sessionStorage.get('currentUser');
+        const storedRole = Utils.sessionStorage.get('userRole');
+        
+        if (storedUser && storedRole) {
+            console.log('Restoring session from storage:', storedUser);
+            this.currentUser = storedUser;
+            this.userRole = storedRole;
+            
+            // Ensure navbar is visible before updating navigation
+            const navbar = document.querySelector('.navbar');
+            if (navbar) {
+                navbar.style.display = 'block';
+            }
+            
+            this.updateUIForAuthenticatedUser();
+            this.updateNavigationForDashboard(storedRole);
+            this.showDashboardInterface(storedRole);
+        }
+
+        // Check for existing Supabase session
+        const { data: { session } } = await window.supabase.auth.getSession();
         
         if (session) {
             await this.handleAuthStateChange(session);
         }
 
         // Listen for auth state changes
-        supabase.auth.onAuthStateChange(async (event, session) => {
+        window.supabase.auth.onAuthStateChange(async (event, session) => {
             if (event === 'SIGNED_IN') {
                 await this.handleAuthStateChange(session);
             } else if (event === 'SIGNED_OUT') {
@@ -192,6 +212,7 @@ class Auth {
 
                 userData = {
                     id: voterData.voter_id,
+                    voter_id: voterData.voter_id,
                     email: voterData.email,
                     full_name: voterData.full_name,
                     role: 'voter',
@@ -358,21 +379,34 @@ class Auth {
         const navMenu = document.getElementById('navMenu');
         if (!navMenu) return;
 
-        // Hide dashboard navigation
+        // Remove dashboard navigation
         const dashboardNav = document.getElementById('dashboardNav');
         if (dashboardNav) {
-            dashboardNav.style.display = 'none';
+            dashboardNav.remove();
         }
         
-        // Show original navigation links
-        const navLinks = navMenu.querySelectorAll('.nav-link');
-        navLinks.forEach(link => {
-            if (!link.closest('#dashboardNav')) {
-                link.style.display = '';
+        // Restore original navigation links if they don't exist
+        const existingLinks = navMenu.querySelectorAll('.nav-link');
+        if (existingLinks.length === 0) {
+            // Recreate original navigation
+            const originalNav = document.createElement('div');
+            originalNav.innerHTML = `
+                <a href="#home" class="nav-link active">Home</a>
+                <a href="#about" class="nav-link">About</a>
+                <a href="#elections" class="nav-link">Elections</a>
+                <a href="#results" class="nav-link">Results</a>
+            `;
+            
+            // Insert before auth buttons
+            const authButtons = navMenu.querySelector('.auth-buttons');
+            const children = originalNav.children;
+            while (children.length > 0) {
+                navMenu.insertBefore(children[0], authButtons);
             }
-        });
+        }
         
         // Reset active states
+        const navLinks = navMenu.querySelectorAll('.nav-link');
         navLinks.forEach(link => link.classList.remove('active'));
         const homeLink = navMenu.querySelector('a[href="#home"]');
         if (homeLink) {
@@ -517,43 +551,64 @@ class Auth {
 
     // Update navigation for dashboard mode
     updateNavigationForDashboard(userType) {
+        console.log('Updating navigation for dashboard mode, userType:', userType);
         const navMenu = document.getElementById('navMenu');
-        if (!navMenu) return;
+        if (!navMenu) {
+            console.error('navMenu not found');
+            return;
+        }
 
-        // Find the nav links container
+        // Make sure navbar is visible
+        const navbar = document.querySelector('.navbar');
+        if (navbar) {
+            navbar.style.display = 'block';
+            console.log('Navbar made visible');
+        }
+
+        // Remove any existing dashboard nav
+        const existingDashboardNav = document.getElementById('dashboardNav');
+        if (existingDashboardNav) {
+            existingDashboardNav.remove();
+        }
+
+        // Find the nav links container and clear it
         const navLinks = navMenu.querySelectorAll('.nav-link');
-        
-        // Hide original navigation links
         navLinks.forEach(link => {
-            link.style.display = 'none';
+            link.remove();
         });
         
         // Add dashboard navigation
-        let dashboardNav = document.getElementById('dashboardNav');
-        if (!dashboardNav) {
-            dashboardNav = document.createElement('div');
-            dashboardNav.id = 'dashboardNav';
-            dashboardNav.className = 'dashboard-nav';
-            
-            if (userType === 'admin') {
-                dashboardNav.innerHTML = `
-                    <a href="#dashboard-home" class="nav-link active" onclick="showDashboardSection('home')">Dashboard</a>
-                `;
-            } else {
-                dashboardNav.innerHTML = `
-                    <a href="#available-elections" class="nav-link" onclick="showDashboardSection('elections')">Elections</a>
-                    <a href="#my-votes" class="nav-link" onclick="showDashboardSection('my-votes')">My Votes</a>
-                    <a href="#election-results" class="nav-link" onclick="showDashboardSection('results')">Results</a>
-                    <a href="#dashboard-home" class="nav-link active" onclick="showDashboardSection('home')">Dashboard</a>
-                `;
-            }
-            
-            // Insert before auth buttons
-            const authButtons = navMenu.querySelector('.auth-buttons');
-            navMenu.insertBefore(dashboardNav, authButtons);
+        const dashboardNav = document.createElement('div');
+        dashboardNav.id = 'dashboardNav';
+        dashboardNav.className = 'dashboard-nav';
+        dashboardNav.style.display = 'flex';
+        dashboardNav.style.alignItems = 'center';
+        dashboardNav.style.gap = '1rem';
+        
+        if (userType === 'admin') {
+            dashboardNav.innerHTML = `
+                <a href="#dashboard-home" class="nav-link active" onclick="showDashboardSection('home')">Dashboard</a>
+            `;
+        } else {
+            dashboardNav.innerHTML = `
+                <a href="#dashboard-home" class="nav-link active" onclick="showDashboardSection('home')">Dashboard</a>
+                <a href="#available-elections" class="nav-link" onclick="showDashboardSection('elections')">Elections</a>
+                <a href="#my-votes" class="nav-link" onclick="showDashboardSection('my-votes')">My Votes</a>
+                <a href="#election-results" class="nav-link" onclick="showDashboardSection('results')">Results</a>
+            `;
         }
         
-        dashboardNav.style.display = 'flex';
+        // Insert before auth buttons
+        const authButtons = navMenu.querySelector('.auth-buttons');
+        if (authButtons) {
+            navMenu.insertBefore(dashboardNav, authButtons);
+            console.log('Dashboard navigation inserted before auth buttons');
+        } else {
+            navMenu.appendChild(dashboardNav);
+            console.log('Dashboard navigation appended to navMenu');
+        }
+        
+        console.log('Dashboard navigation added:', dashboardNav);
     }
 
     // Show dashboard home content
@@ -1127,6 +1182,24 @@ class Auth {
                 return;
             }
 
+            // Check if we have a valid voter_id
+            if (!this.currentUser || !this.currentUser.voter_id) {
+                console.error('No valid voter_id found. User data:', this.currentUser);
+                voterContent.innerHTML = `
+                    <div class="dashboard-header">
+                        <h2><i class="fas fa-history"></i> My Voting History</h2>
+                    </div>
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Unable to load voting history. Please log in again.
+                        <button onclick="window.Auth.logout()" class="btn btn-primary" style="margin-top: 1rem;">
+                            <i class="fas fa-sign-out-alt"></i> Re-login
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
             // Show loading state
             voterContent.innerHTML = `
                 <div class="dashboard-header">
@@ -1140,7 +1213,7 @@ class Auth {
             console.log('Fetching votes for voter_id:', this.currentUser.voter_id);
 
             // Get voter's votes with detailed information
-            const { data: votes, error: votesError } = await supabase
+            const { data: votes, error: votesError } = await window.supabase
                 .from('vote')
                 .select(`
                     vote_id,
@@ -1285,7 +1358,7 @@ class Auth {
             `;
 
             // Get elections that have results
-            const { data: elections, error: electionsError } = await supabase
+            const { data: elections, error: electionsError } = await window.supabase
                 .from('election')
                 .select(`
                     election_id,
@@ -1323,7 +1396,7 @@ class Auth {
             // Get results for each election
             let resultsHTML = '';
             for (const election of elections) {
-                const { data: candidates, error: candidatesError } = await supabase
+                const { data: candidates, error: candidatesError } = await window.supabase
                     .from('candidate')
                     .select(`
                         candidate_id,
@@ -1344,7 +1417,7 @@ class Auth {
                 if (candidates && candidates.length > 0) {
                     for (const candidate of candidates) {
                         // Get contest for this candidate in this election
-                        const { data: contests, error: contestError } = await supabase
+                        const { data: contests, error: contestError } = await window.supabase
                             .from('contest')
                             .select('contest_id')
                             .eq('election_id', election.election_id)
@@ -1353,7 +1426,7 @@ class Auth {
                         let voteCount = 0;
                         if (contests && contests.length > 0) {
                             // Get vote count for this contest
-                            const { count, error: voteError } = await supabase
+                            const { count, error: voteError } = await window.supabase
                                 .from('vote')
                                 .select('*', { count: 'exact' })
                                 .eq('contest_id', contests[0].contest_id);
@@ -1975,6 +2048,7 @@ function showDashboardSection(section) {
 // Initialize auth when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.Auth = new Auth();
+    window.Auth.init();
 });
 
 // Export Auth class

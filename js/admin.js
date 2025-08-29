@@ -743,6 +743,257 @@ class Admin {
         }
     }
 
+    // Declare Winner - Officially declare the winner of an election
+    async declareWinner(electionId) {
+        try {
+            // Get election details
+            const { data: election, error: electionError } = await supabase
+                .from('election')
+                .select('*')
+                .eq('election_id', electionId)
+                .single();
+
+            if (electionError) throw electionError;
+
+            // Check if winner already declared (try both methods)
+            let winnerAlreadyDeclared = false;
+            try {
+                const { data: winnerCheck } = await supabase
+                    .from('election')
+                    .select('winner_declared')
+                    .eq('election_id', electionId)
+                    .single();
+                
+                if (winnerCheck?.winner_declared === 'Y') {
+                    winnerAlreadyDeclared = true;
+                }
+            } catch (error) {
+                // Column doesn't exist, proceed with declaration
+                console.log('Winner declaration column not available, proceeding...');
+            }
+
+            if (winnerAlreadyDeclared) {
+                Utils.showToast('Winner has already been declared for this election.', 'warning');
+                return;
+            }
+
+            // Get current results to find the winner
+            const { data: results, error: resultsError } = await supabase
+                .from('result')
+                .select(`
+                    *,
+                    candidate(
+                        full_name,
+                        party,
+                        symbol
+                    )
+                `)
+                .eq('election_id', electionId)
+                .order('total_votes', { ascending: false });
+
+            if (resultsError) throw resultsError;
+
+            if (!results || results.length === 0) {
+                Utils.showToast('No results available for this election. Please update results first.', 'warning');
+                return;
+            }
+
+            const winner = results[0];
+            const totalVotes = results.reduce((sum, result) => sum + (result.total_votes || 0), 0);
+
+            // Check for tie
+            const topCandidates = results.filter(r => r.total_votes === winner.total_votes);
+            if (topCandidates.length > 1) {
+                const tieMessage = `There is a tie between ${topCandidates.length} candidates with ${winner.total_votes} votes each:\n\n${topCandidates.map(c => `• ${c.candidate.full_name} (${c.candidate.party || 'Independent'})`).join('\n')}\n\nPlease resolve the tie before declaring a winner.`;
+                alert(tieMessage);
+                return;
+            }
+
+            // Show confirmation dialog
+            const confirmed = confirm(`🏆 DECLARE WINNER\n\nElection: ${election.name}\nWinner: ${winner.candidate.full_name}\nParty: ${winner.candidate.party || 'Independent'}\nVotes: ${winner.total_votes} (${winner.percentage ? winner.percentage.toFixed(1) : '0.0'}%)\nTotal Votes Cast: ${totalVotes}\n\nAre you sure you want to officially declare this candidate as the winner?\n\nThis will make the results visible to all voters.`);
+            
+            if (!confirmed) return;
+
+            Utils.showLoading();
+
+            // Try to update election table with winner information (if columns exist)
+            try {
+                const { error: updateError } = await supabase
+                    .from('election')
+                    .update({
+                        winner_declared: 'Y',
+                        winner_candidate_id: winner.candidate_id,
+                        winner_declared_at: new Date().toISOString()
+                    })
+                    .eq('election_id', electionId);
+
+                if (updateError) {
+                    console.log('Winner declaration columns not available, using alternative method');
+                    // If columns don't exist, just mark election as completed
+                    await supabase
+                        .from('election')
+                        .update({ is_active: 'N' })
+                        .eq('election_id', electionId);
+                }
+            } catch (error) {
+                console.log('Using alternative winner declaration method');
+                // Fallback: just mark election as inactive
+                await supabase
+                    .from('election')
+                    .update({ is_active: 'N' })
+                    .eq('election_id', electionId);
+            }
+
+            // Create audit log entry
+            try {
+                const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+                await supabase
+                    .from('audit_log')
+                    .insert([{
+                        admin_id: currentUser.admin_id || null,
+                        action: 'DECLARE_WINNER',
+                        description: `Declared winner for election "${election.name}": ${winner.candidate.full_name} with ${winner.total_votes} votes`,
+                        action_time: new Date().toISOString()
+                    }]);
+            } catch (error) {
+                console.log('Audit log not available:', error);
+            }
+
+            // Show winner announcement
+            const winnerAnnouncement = `
+                <div class="winner-announcement-modal" style="
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.8);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 2000;
+                    padding: 20px;
+                    box-sizing: border-box;
+                ">
+                    <div class="modal-content" style="
+                        background: white;
+                        border-radius: 16px;
+                        max-width: 600px;
+                        width: 100%;
+                        max-height: 90vh;
+                        overflow-y: auto;
+                        box-shadow: 0 25px 75px rgba(0, 0, 0, 0.3);
+                        text-align: center;
+                        padding: 40px;
+                    ">
+                        <div class="winner-header">
+                            <i class="fas fa-trophy" style="font-size: 48px; color: #ffd700; margin-bottom: 20px;"></i>
+                            <h2 style="color: #2d3748; margin: 0 0 30px 0;">🎉 WINNER DECLARED!</h2>
+                        </div>
+                        
+                        <div class="election-info" style="margin-bottom: 30px;">
+                            <h3 style="color: #4a5568; margin: 0 0 10px 0;">${election.name}</h3>
+                            <p style="color: #718096; margin: 5px 0;">${election.election_type}</p>
+                            <p style="color: #718096; margin: 5px 0;">${Utils.formatDate(election.election_date)}</p>
+                        </div>
+                        
+                        <div class="winner-details" style="margin-bottom: 30px;">
+                            <div class="winner-card" style="
+                                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                color: white;
+                                padding: 30px;
+                                border-radius: 12px;
+                                margin-bottom: 20px;
+                            ">
+                                <h3 style="margin: 0 0 10px 0; font-size: 24px;">🏆 ${winner.candidate.full_name}</h3>
+                                <p style="margin: 0 0 10px 0; opacity: 0.9;">${winner.candidate.party || 'Independent'}</p>
+                                ${winner.candidate.symbol ? `<p style="margin: 0 0 20px 0; opacity: 0.8;">Symbol: ${winner.candidate.symbol}</p>` : ''}
+                                <div class="vote-stats" style="display: flex; justify-content: space-around; gap: 20px;">
+                                    <div class="stat">
+                                        <div style="font-size: 24px; font-weight: bold;">${winner.total_votes}</div>
+                                        <div style="font-size: 12px; opacity: 0.8;">Votes Received</div>
+                                    </div>
+                                    <div class="stat">
+                                        <div style="font-size: 24px; font-weight: bold;">${winner.percentage ? winner.percentage.toFixed(1) : '0.0'}%</div>
+                                        <div style="font-size: 12px; opacity: 0.8;">Vote Share</div>
+                                    </div>
+                                    <div class="stat">
+                                        <div style="font-size: 24px; font-weight: bold;">${totalVotes}</div>
+                                        <div style="font-size: 12px; opacity: 0.8;">Total Votes Cast</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="other-results">
+                            <h4 style="color: #4a5568; margin-bottom: 15px;">Final Results</h4>
+                            <div class="results-list" style="text-align: left;">
+                                ${results.map((result, index) => `
+                                    <div style="
+                                        display: flex;
+                                        align-items: center;
+                                        padding: 10px;
+                                        margin: 5px 0;
+                                        background: ${index === 0 ? '#f0fff4' : '#f7fafc'};
+                                        border-radius: 6px;
+                                        border-left: 4px solid ${index === 0 ? '#38a169' : '#e2e8f0'};
+                                    ">
+                                        <span style="font-weight: bold; margin-right: 10px; color: #4a5568;">${index + 1}.</span>
+                                        <span style="flex: 1; font-weight: ${index === 0 ? 'bold' : 'normal'}; color: #2d3748;">${result.candidate.full_name}</span>
+                                        <span style="margin: 0 10px; color: #718096;">(${result.candidate.party || 'Independent'})</span>
+                                        <span style="margin: 0 10px; font-weight: bold; color: #4a5568;">${result.total_votes} votes</span>
+                                        <span style="color: #718096;">${result.percentage ? result.percentage.toFixed(1) : '0.0'}%</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        
+                        <div class="modal-actions" style="display: flex; gap: 10px; justify-content: center; margin-top: 30px;">
+                            <button class="btn btn-primary" onclick="this.closest('.winner-announcement-modal').remove(); window.Admin.showTab('results');" style="
+                                background: #4299e1;
+                                color: white;
+                                border: none;
+                                padding: 12px 24px;
+                                border-radius: 6px;
+                                cursor: pointer;
+                                font-weight: 500;
+                            ">
+                                <i class="fas fa-chart-bar"></i> View Results
+                            </button>
+                            <button class="btn btn-outline" onclick="this.closest('.winner-announcement-modal').remove();" style="
+                                background: #edf2f7;
+                                color: #4a5568;
+                                border: 1px solid #e2e8f0;
+                                padding: 12px 24px;
+                                border-radius: 6px;
+                                cursor: pointer;
+                                font-weight: 500;
+                            ">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', winnerAnnouncement);
+
+            Utils.showToast(`Winner declared: ${winner.candidate.full_name}!`, 'success');
+
+            // Refresh the results tab
+            const currentContainer = document.querySelector('#adminTabContent');
+            if (currentContainer) {
+                this.loadResultsTab(currentContainer);
+            }
+
+        } catch (error) {
+            console.error('Error declaring winner:', error);
+            Utils.showToast('Failed to declare winner: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    }
+
     // Publish All Results - Bulk publish results for all elections
     async publishAllResults() {
         try {
@@ -859,6 +1110,113 @@ class Admin {
                 .insert(results);
 
             if (insertError) throw insertError;
+        }
+    }
+
+    // Refresh Results - Just refresh the results display without republishing
+    async refreshResults(electionId) {
+        try {
+            Utils.showLoading();
+            
+            // Simply refresh the results tab to show updated vote counts
+            const currentContainer = document.querySelector('#adminTabContent');
+            if (currentContainer) {
+                await this.loadResultsTab(currentContainer);
+            }
+            
+            Utils.showToast('Results refreshed successfully!', 'success');
+            
+        } catch (error) {
+            console.error('Error refreshing results:', error);
+            Utils.showToast('Failed to refresh results: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    }
+
+    // Calculate Results for Election - Helper function to calculate results if they don't exist
+    async calculateResultsForElection(electionId) {
+        try {
+            // Check if results already exist
+            const { data: existingResults, error: checkError } = await supabase
+                .from('result')
+                .select('result_id')
+                .eq('election_id', electionId)
+                .limit(1);
+
+            if (checkError) {
+                console.error('Error checking existing results:', checkError);
+                return;
+            }
+
+            // If results already exist, don't recalculate unless forced
+            if (existingResults && existingResults.length > 0) {
+                return;
+            }
+
+            // Get all contests for this election
+            const { data: contests, error: contestError } = await supabase
+                .from('contest')
+                .select(`
+                    *,
+                    candidate(full_name, party, symbol)
+                `)
+                .eq('election_id', electionId);
+
+            if (contestError) {
+                console.error('Error loading contests:', contestError);
+                return;
+            }
+
+            if (!contests || contests.length === 0) {
+                // No candidates, no results to calculate
+                return;
+            }
+
+            // Calculate results for each candidate
+            const results = [];
+            let totalVotes = 0;
+
+            for (const contest of contests) {
+                // Count votes for this candidate
+                const { data: votes, error: voteError } = await supabase
+                    .from('vote')
+                    .select('vote_id')
+                    .eq('contest_id', contest.contest_id);
+
+                if (voteError) {
+                    console.error('Error counting votes for contest:', contest.contest_id, voteError);
+                    continue;
+                }
+
+                const voteCount = votes ? votes.length : 0;
+                totalVotes += voteCount;
+
+                results.push({
+                    election_id: electionId,
+                    candidate_id: contest.candidate_id,
+                    total_votes: voteCount
+                });
+            }
+
+            // Calculate percentages
+            results.forEach(result => {
+                result.percentage = totalVotes > 0 ? (result.total_votes / totalVotes) * 100 : 0;
+            });
+
+            // Insert results if we have any candidates
+            if (results.length > 0) {
+                const { error: insertError } = await supabase
+                    .from('result')
+                    .insert(results);
+
+                if (insertError) {
+                    console.error('Error inserting results:', insertError);
+                }
+            }
+
+        } catch (error) {
+            console.error('Error calculating results for election:', electionId, error);
         }
     }
 
@@ -1908,66 +2266,214 @@ class Admin {
         try {
             Utils.showLoading();
             
-            // Get elections with their results
+            // Get elections with their schedules
             const { data: elections, error: electionsError } = await supabase
                 .from('election')
-                .select('*')
+                .select(`
+                    *,
+                    schedule (
+                        voting_start,
+                        voting_end,
+                        nomination_start,
+                        nomination_end,
+                        result_declared
+                    )
+                `)
                 .order('election_date', { ascending: false });
 
             if (electionsError) throw electionsError;
 
-            let resultsHTML = '';
+            const currentDate = new Date();
+            const ongoingElections = [];
+            const completedElections = [];
 
-            if (elections && elections.length > 0) {
-                for (const election of elections) {
-                    // Get results for this election
-                    const { data: results, error: resultsError } = await supabase
-                        .from('result')
-                        .select(`
-                            *,
-                            candidate(
-                                full_name,
-                                party,
-                                symbol
-                            )
-                        `)
-                        .eq('election_id', election.election_id)
-                        .order('total_votes', { ascending: false });
-
-                    if (resultsError) {
-                        console.error('Error loading results:', resultsError);
-                        continue;
+            // Categorize elections based on voting schedule
+            for (const election of elections) {
+                const schedule = election.schedule?.[0]; // Get first schedule if exists
+                
+                let isOngoing = false;
+                let isCompleted = false;
+                
+                if (schedule) {
+                    // Use schedule dates if available
+                    const votingStart = schedule.voting_start ? new Date(schedule.voting_start) : null;
+                    const votingEnd = schedule.voting_end ? new Date(schedule.voting_end) : null;
+                    
+                    if (votingStart && votingEnd) {
+                        // Has proper schedule
+                        if (currentDate >= votingStart && currentDate <= votingEnd && election.is_active === 'Y') {
+                            isOngoing = true;
+                        } else if (currentDate > votingEnd || election.is_active === 'N') {
+                            isCompleted = true;
+                        }
+                        // Skip if voting hasn't started yet (upcoming)
+                    } else {
+                        // Fallback to election_date if no schedule
+                        const electionDate = new Date(election.election_date);
+                        if (electionDate <= currentDate && election.is_active === 'Y') {
+                            isOngoing = true;
+                        } else if (electionDate <= currentDate || election.is_active === 'N') {
+                            isCompleted = true;
+                        }
                     }
+                } else {
+                    // No schedule, use election_date
+                    const electionDate = new Date(election.election_date);
+                    if (electionDate <= currentDate && election.is_active === 'Y') {
+                        isOngoing = true;
+                    } else if (electionDate <= currentDate || election.is_active === 'N') {
+                        isCompleted = true;
+                    }
+                }
+                
+                if (isOngoing) {
+                    ongoingElections.push(election);
+                } else if (isCompleted) {
+                    completedElections.push(election);
+                }
+                // Skip upcoming elections
+            }
 
-                    const totalVotes = results ? results.reduce((sum, result) => sum + (result.total_votes || 0), 0) : 0;
+            const generateElectionResultsHTML = async (election, isCompleted = false) => {
+                // First, try to calculate results if they don't exist
+                await this.calculateResultsForElection(election.election_id);
+                
+                // Get results for this election
+                const { data: results, error: resultsError } = await supabase
+                    .from('result')
+                    .select(`
+                        *,
+                        candidate(
+                            full_name,
+                            party,
+                            symbol
+                        )
+                    `)
+                    .eq('election_id', election.election_id)
+                    .order('total_votes', { ascending: false });
 
-                    resultsHTML += `
-                        <div class="election-results">
-                            <div class="result-header">
-                                <div class="result-title">
-                                    <h4>${Utils.sanitizeHtml(election.name)}</h4>
-                                    <div class="result-meta">
-                                        <span class="election-type">${Utils.sanitizeHtml(election.election_type)}</span>
-                                        <span class="election-date">${Utils.formatDate(election.election_date)}</span>
-                                        <span class="total-votes">Total Votes: ${totalVotes}</span>
-                                    </div>
+                if (resultsError) {
+                    console.error('Error loading results:', resultsError);
+                    return '';
+                }
+
+                // Check if results have been declared (winner published)
+                let winnerDeclared = false;
+                let winnerCandidateId = null;
+                
+                try {
+                    const { data: winnerData } = await supabase
+                        .from('election')
+                        .select('winner_declared, winner_candidate_id')
+                        .eq('election_id', election.election_id)
+                        .single();
+                    
+                    winnerDeclared = winnerData?.winner_declared === 'Y';
+                    winnerCandidateId = winnerData?.winner_candidate_id;
+                } catch (error) {
+                    // Columns don't exist yet, use defaults
+                    console.log('Winner declaration columns not available:', error);
+                }
+
+                const totalVotes = results ? results.reduce((sum, result) => sum + (result.total_votes || 0), 0) : 0;
+                const schedule = election.schedule?.[0];
+                
+                // Format date and time information
+                let dateTimeInfo = '';
+                if (schedule) {
+                    const votingStart = schedule.voting_start ? new Date(schedule.voting_start) : null;
+                    const votingEnd = schedule.voting_end ? new Date(schedule.voting_end) : null;
+                    
+                    if (votingStart && votingEnd) {
+                        const formatDateTime = (date) => {
+                            return date.toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            });
+                        };
+                        
+                        dateTimeInfo = `
+                            <div class="schedule-info">
+                                <div class="schedule-item">
+                                    <i class="fas fa-play-circle"></i>
+                                    <span>Started: ${formatDateTime(votingStart)}</span>
                                 </div>
-                                <div class="result-actions">
-                                    <button class="btn btn-small btn-primary" onclick="window.Admin.publishResults('${election.election_id}')" title="Recalculate & Publish Results">
-                                        <i class="fas fa-sync"></i> Update Results
-                                    </button>
+                                <div class="schedule-item">
+                                    <i class="fas fa-stop-circle"></i>
+                                    <span>${isCompleted ? 'Ended' : 'Ends'}: ${formatDateTime(votingEnd)}</span>
                                 </div>
                             </div>
-                            
-                            ${results && results.length > 0 ? `
-                                <div class="candidates-results">
-                                    ${results.map((result, index) => `
-                                        <div class="candidate-result ${index === 0 && result.total_votes > 0 ? 'winner' : ''}">
+                        `;
+                    }
+                } else {
+                    // Fallback to election date
+                    const electionDate = new Date(election.election_date);
+                    dateTimeInfo = `
+                        <div class="schedule-info">
+                            <div class="schedule-item">
+                                <i class="fas fa-calendar"></i>
+                                <span>Election Date: ${Utils.formatDate(election.election_date)}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div class="election-results">
+                        <div class="result-header">
+                            <div class="result-title">
+                                <h4>${Utils.sanitizeHtml(election.name)}</h4>
+                                <div class="result-meta">
+                                    <span class="election-type">
+                                        <i class="fas fa-tag"></i>
+                                        ${Utils.sanitizeHtml(election.election_type)}
+                                    </span>
+                                    <span class="total-votes">
+                                        <i class="fas fa-users"></i>
+                                        Total Votes: ${totalVotes}
+                                    </span>
+                                    <span class="status-badge ${isCompleted ? 'completed' : 'ongoing'}">${isCompleted ? 'Completed' : 'Ongoing'}</span>
+                                    ${winnerDeclared ? '<span class="status-badge declared">Winner Declared</span>' : ''}
+                                </div>
+                                ${dateTimeInfo}
+                            </div>
+                            <div class="result-actions">
+                                ${isCompleted ? `
+                                    ${!winnerDeclared && results && results.length > 0 ? `
+                                        <button class="btn btn-small btn-success" onclick="window.Admin.declareWinner('${election.election_id}')" title="Declare Winner">
+                                            <i class="fas fa-trophy"></i> Declare Winner
+                                        </button>
+                                    ` : ''}
+                                    <button class="btn btn-small btn-primary" onclick="window.Admin.refreshResults('${election.election_id}')" title="Recalculate Results">
+                                        <i class="fas fa-sync"></i> Refresh Results
+                                    </button>
+                                ` : `
+                                    <button class="btn btn-small btn-primary" onclick="window.Admin.refreshResults('${election.election_id}')" title="Refresh Live Results">
+                                        <i class="fas fa-sync"></i> Refresh Results
+                                    </button>
+                                `}
+                            </div>
+                        </div>
+                        
+                        ${results && results.length > 0 ? `
+                            <div class="candidates-results">
+                                ${results.map((result, index) => {
+                                    const isWinner = winnerDeclared && result.candidate_id === winnerCandidateId;
+                                    const isLeading = index === 0 && result.total_votes > 0;
+                                    return `
+                                        <div class="candidate-result ${isWinner ? 'declared-winner' : isLeading ? 'leading' : ''}">
                                             <div class="candidate-info">
-                                                <div class="position">#${index + 1}</div>
+                                                <div class="position">
+                                                    ${isWinner ? '<i class="fas fa-crown"></i>' : `#${index + 1}`}
+                                                </div>
                                                 <div class="details">
                                                     <h5>${Utils.sanitizeHtml(result.candidate?.full_name || 'Unknown')}</h5>
                                                     <p>${Utils.sanitizeHtml(result.candidate?.party || 'Independent')}</p>
+                                                    ${result.candidate?.symbol ? `<span class="symbol">${Utils.sanitizeHtml(result.candidate.symbol)}</span>` : ''}
+                                                    ${isWinner ? '<span class="winner-badge">🏆 WINNER</span>' : ''}
                                                 </div>
                                             </div>
                                             <div class="vote-info">
@@ -1976,20 +2482,36 @@ class Admin {
                                                     ${result.percentage ? result.percentage.toFixed(1) : '0.0'}%
                                                 </div>
                                                 <div class="vote-bar">
-                                                    <div class="vote-fill" style="width: ${result.percentage || 0}%"></div>
+                                                    <div class="vote-fill ${isWinner ? 'winner-fill' : isLeading ? 'leading-fill' : ''}" style="width: ${result.percentage || 0}%"></div>
                                                 </div>
                                             </div>
                                         </div>
-                                    `).join('')}
-                                </div>
-                            ` : `
-                                <div class="no-results">
-                                    <p>No results available for this election yet.</p>
-                                </div>
-                            `}
-                        </div>
-                    `;
-                }
+                                    `;
+                                }).join('')}
+                            </div>
+                        ` : `
+                            <div class="no-results">
+                                <p>No results available for this election yet.</p>
+                                ${isCompleted ? '<p>No votes were cast or no candidates are available.</p>' : '<p>Voting is ongoing - results will appear as votes are cast.</p>'}
+                                <button class="btn btn-small btn-primary" onclick="window.Admin.refreshResults('${election.election_id}')" style="margin-top: 12px;">
+                                    <i class="fas fa-sync"></i> Check for Updates
+                                </button>
+                            </div>
+                        `}
+                    </div>
+                `;
+            };
+
+            // Generate HTML for ongoing elections
+            let ongoingHTML = '';
+            for (const election of ongoingElections) {
+                ongoingHTML += await generateElectionResultsHTML(election, false);
+            }
+
+            // Generate HTML for completed elections
+            let completedHTML = '';
+            for (const election of completedElections) {
+                completedHTML += await generateElectionResultsHTML(election, true);
             }
 
             container.innerHTML = `
@@ -1997,23 +2519,43 @@ class Admin {
                     <div class="section-header">
                         <div>
                             <h3>Election Results</h3>
-                            <p>View voting results and statistics</p>
+                            <p>View voting results, live counts, and declare winners</p>
                         </div>
                         <div class="section-actions">
                             <button class="btn btn-primary" onclick="window.Admin.publishAllResults()">
-                                <i class="fas fa-chart-bar"></i> Publish All Results
+                                <i class="fas fa-chart-bar"></i> Update All Results
                             </button>
                         </div>
                     </div>
                     
                     <div class="results-container">
-                        ${resultsHTML || `
+                        ${ongoingElections.length > 0 ? `
+                            <div class="results-section">
+                                <h4 class="section-title">
+                                    <i class="fas fa-clock"></i> Ongoing Elections
+                                    <span class="count">(${ongoingElections.length})</span>
+                                </h4>
+                                ${ongoingHTML}
+                            </div>
+                        ` : ''}
+                        
+                        ${completedElections.length > 0 ? `
+                            <div class="results-section">
+                                <h4 class="section-title">
+                                    <i class="fas fa-check-circle"></i> Completed Elections
+                                    <span class="count">(${completedElections.length})</span>
+                                </h4>
+                                ${completedHTML}
+                            </div>
+                        ` : ''}
+                        
+                        ${ongoingElections.length === 0 && completedElections.length === 0 ? `
                             <div class="no-elections">
                                 <i class="fas fa-chart-bar" style="font-size: 48px; color: #a0aec0; margin-bottom: 20px;"></i>
-                                <h4>No Elections Found</h4>
-                                <p>No elections have been created yet.</p>
+                                <h4>No Elections with Results</h4>
+                                <p>No ongoing or completed elections found. Results will appear here once elections are active or completed.</p>
                             </div>
-                        `}
+                        ` : ''}
                     </div>
                 </div>
             `;

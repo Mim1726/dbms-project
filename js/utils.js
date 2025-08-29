@@ -319,6 +319,57 @@ class Utils {
     };
 }
 
+// Policy Modal Functions
+function openPrivacyModal() {
+    document.getElementById('privacyModal').style.display = 'block';
+    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+}
+
+function closePrivacyModal() {
+    document.getElementById('privacyModal').style.display = 'none';
+    document.body.style.overflow = 'auto'; // Restore scrolling
+}
+
+function openTermsModal() {
+    document.getElementById('termsModal').style.display = 'block';
+    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+}
+
+function closeTermsModal() {
+    document.getElementById('termsModal').style.display = 'none';
+    document.body.style.overflow = 'auto'; // Restore scrolling
+}
+
+// Close modals when clicking outside
+window.addEventListener('click', function(event) {
+    const privacyModal = document.getElementById('privacyModal');
+    const termsModal = document.getElementById('termsModal');
+    
+    if (event.target === privacyModal) {
+        closePrivacyModal();
+    }
+    
+    if (event.target === termsModal) {
+        closeTermsModal();
+    }
+});
+
+// Close modals with Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        const privacyModal = document.getElementById('privacyModal');
+        const termsModal = document.getElementById('termsModal');
+        
+        if (privacyModal.style.display === 'block') {
+            closePrivacyModal();
+        }
+        
+        if (termsModal.style.display === 'block') {
+            closeTermsModal();
+        }
+    }
+});
+
 // Toast close button event listener
 document.getElementById('toastClose').addEventListener('click', () => {
     document.getElementById('toast').classList.remove('show');

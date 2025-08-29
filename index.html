@@ -448,11 +448,107 @@
         <div class="container">
             <p>&copy; 2025 Online Voting Management System</p>
             <p>
-                <a href="privacy-policy.html" target="_blank">Privacy Policy</a> |
-                <a href="terms-and-conditions.html" target="_blank">Terms &amp; Conditions</a>
+                <a href="#" onclick="openPrivacyModal(); return false;">Privacy Policy</a> |
+                <a href="#" onclick="openTermsModal(); return false;">Terms &amp; Conditions</a>
             </p>
         </div>
     </footer>
+
+    <!-- Privacy Policy Modal -->
+    <div id="privacyModal" class="policy-modal">
+        <div class="policy-modal-content">
+            <div class="policy-modal-header">
+                <h2 class="policy-modal-title">
+                    <i class="fas fa-user-shield"></i>
+                    Privacy Policy
+                </h2>
+                <button class="policy-modal-close" onclick="closePrivacyModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="policy-modal-body">
+                <div class="policy-section">
+                    <h3><i class="fas fa-lock"></i> Your Privacy Matters</h3>
+                    <p>
+                        We value your trust and are committed to protecting your personal information. When you use our Online Voting Management System, your data is handled with care and respect.
+                    </p>
+                </div>
+                <div class="policy-section">
+                    <h3><i class="fas fa-database"></i> What We Collect</h3>
+                    <p>
+                        We collect only the information necessary to provide a secure and transparent voting experience—such as your name, email, and voting activity. We never sell or share your data with third parties.
+                    </p>
+                </div>
+                <div class="policy-section">
+                    <h3><i class="fas fa-shield-alt"></i> How We Protect You</h3>
+                    <p>
+                        Your data is encrypted and stored securely. We use modern security practices to keep your information safe from unauthorized access.
+                    </p>
+                </div>
+                <div class="policy-section">
+                    <h3><i class="fas fa-user-friends"></i> Transparency & Control</h3>
+                    <p>
+                        You can always reach out to us to know what data we have or to request changes. We believe in transparency and empower you to control your information.
+                    </p>
+                </div>
+                <div class="contact-box">
+                    <i class="fas fa-envelope"></i>
+                    <span>Questions? Contact our admins anytime:<br>
+                        <a href="mailto:mimrobo1726@gmail.com">mimrobo1726@gmail.com</a> &nbsp;|&nbsp;
+                        <a href="mailto:tamalkanti223@gmail.com">tamalkanti223@gmail.com</a>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Terms & Conditions Modal -->
+    <div id="termsModal" class="policy-modal">
+        <div class="policy-modal-content">
+            <div class="policy-modal-header">
+                <h2 class="policy-modal-title">
+                    <i class="fas fa-file-contract"></i>
+                    Terms & Conditions
+                </h2>
+                <button class="policy-modal-close" onclick="closeTermsModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="policy-modal-body">
+                <div class="policy-section">
+                    <h3><i class="fas fa-user-check"></i> Using Our Service</h3>
+                    <p>
+                        By accessing or using the Online Voting Management System, you agree to follow all applicable laws and respect the integrity of the platform. Your participation helps us maintain a fair and secure environment for everyone.
+                    </p>
+                </div>
+                <div class="policy-section">
+                    <h3><i class="fas fa-copyright"></i> Intellectual Property</h3>
+                    <p>
+                        All content, designs, and technology on this site are owned by us or our licensors. Please do not copy, reproduce, or distribute any part of the site without permission.
+                    </p>
+                </div>
+                <div class="policy-section">
+                    <h3><i class="fas fa-exclamation-triangle"></i> Limitation of Liability</h3>
+                    <p>
+                        We strive to provide a reliable service, but we are not responsible for any losses or damages resulting from your use of the platform. Use the service at your own risk.
+                    </p>
+                </div>
+                <div class="policy-section">
+                    <h3><i class="fas fa-sync-alt"></i> Updates to Terms</h3>
+                    <p>
+                        We may update these Terms & Conditions from time to time. Continued use of the service means you accept any changes. Please check back periodically for updates.
+                    </p>
+                </div>
+                <div class="contact-box">
+                    <i class="fas fa-envelope"></i>
+                    <span>Questions? Contact our admins anytime:<br>
+                        <a href="mailto:mimrobo1726@gmail.com">mimrobo1726@gmail.com</a> &nbsp;|&nbsp;
+                        <a href="mailto:tamalkanti223@gmail.com">tamalkanti223@gmail.com</a>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

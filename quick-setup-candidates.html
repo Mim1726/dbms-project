@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Test Candidates - Quick Setup</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <style>
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .btn.success {
+            background: #28a745;
+        }
+        .btn.success:hover {
+            background: #1e7e34;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .candidate-list {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .candidate-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border-left: 4px solid #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Quick Test Candidates Setup</h1>
+        <p>This will add 5 test candidates to your CSEDU Election instantly!</p>
+        
+        <div class="candidate-list">
+            <h3>Candidates to be added:</h3>
+            <div class="candidate-item">
+                <strong>Sarah Ahmed</strong> - Progressive Students Union (Book) - ✅ Approved
+            </div>
+            <div class="candidate-item">
+                <strong>Mohammad Rahman</strong> - Student Welfare Association (Star) - ✅ Approved
+            </div>
+            <div class="candidate-item">
+                <strong>Fatima Khan</strong> - Independent (Flower) - ✅ Approved
+            </div>
+            <div class="candidate-item">
+                <strong>Ahmed Hassan</strong> - Tech Innovation Party (Laptop) - ⏳ Pending
+            </div>
+            <div class="candidate-item">
+                <strong>Nusrat Jahan</strong> - Student Unity Front (Pen) - ⏳ Pending
+            </div>
+        </div>
+
+        <div style="text-align: center;">
+            <button onclick="addTestCandidates()" class="btn">Add All Test Candidates</button>
+            <button onclick="window.location.href='index.html'" class="btn">Go to Main Website</button>
+        </div>
+
+        <div id="status"></div>
+    </div>
+
+    <script>
+        async function addTestCandidates() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = '<div class="status info">Adding test candidates...</div>';
+            
+            try {
+                // Test candidates data
+                const candidates = [
+                    {
+                        election_id: 1,
+                        full_name: 'Sarah Ahmed',
+                        party: 'Progressive Students Union',
+                        symbol: 'Book',
+                        bio: 'A dedicated Computer Science student with 3 years of experience in student leadership. Served as class representative and actively participated in various academic and extracurricular activities.',
+                        manifesto: 'I pledge to improve laboratory facilities, extend library hours, organize more technical workshops, and establish a student feedback system for curriculum improvements.',
+                        status: 'approved'
+                    },
+                    {
+                        election_id: 1,
+                        full_name: 'Mohammad Rahman',
+                        party: 'Student Welfare Association',
+                        symbol: 'Star',
+                        bio: 'Final year CSE student with strong background in competitive programming and software development. Has organized multiple coding competitions and hackathons.',
+                        manifesto: 'My vision includes establishing a career counseling center, improving internet connectivity across campus, creating study spaces, and introducing industry mentorship programs for students.',
+                        status: 'approved'
+                    },
+                    {
+                        election_id: 1,
+                        full_name: 'Fatima Khan',
+                        party: 'Independent',
+                        symbol: 'Flower',
+                        bio: 'A passionate advocate for student rights with experience in event management and social work. Active member of the Computer Club and debate society.',
+                        manifesto: 'I will work towards better cafeteria services, more recreational facilities, improved transportation, and establishing a student emergency fund for those in financial need.',
+                        status: 'approved'
+                    },
+                    {
+                        election_id: 1,
+                        full_name: 'Ahmed Hassan',
+                        party: 'Tech Innovation Party',
+                        symbol: 'Laptop',
+                        bio: 'Third-year student specializing in AI and Machine Learning. Has published research papers and won several programming contests at national level.',
+                        manifesto: 'Focus on modernizing computer labs, introducing new technology courses, establishing startup incubation center, and creating more opportunities for research collaboration.',
+                        status: 'pending'
+                    },
+                    {
+                        election_id: 1,
+                        full_name: 'Nusrat Jahan',
+                        party: 'Student Unity Front',
+                        symbol: 'Pen',
+                        bio: 'Active student leader with experience in organizing cultural events and academic seminars. Strong advocate for gender equality and inclusive education.',
+                        manifesto: 'I aim to improve hostel facilities, establish better communication channels between students and faculty, organize more cultural events, and ensure equal opportunities for all students.',
+                        status: 'pending'
+                    }
+                ];
+
+                let successCount = 0;
+                
+                for (const candidate of candidates) {
+                    try {
+                        // Insert into candidate table (singular, as per schema)
+                        const { data: candidateData, error: candidateError } = await supabase
+                            .from('candidate')
+                            .insert([{
+                                ...candidate,
+                                created_at: new Date().toISOString()
+                            }])
+                            .select();
+                            
+                        if (candidateError) throw candidateError;
+                        
+                        // If candidate was inserted successfully, add to contest table
+                        if (candidateData && candidateData.length > 0) {
+                            const newCandidateId = candidateData[0].candidate_id;
+                            
+                            const { error: contestError } = await supabase
+                                .from('contest')
+                                .insert([{
+                                    election_id: candidate.election_id,
+                                    candidate_id: newCandidateId,
+                                    position: 'Student Representative'
+                                }]);
+                                
+                            if (contestError) {
+                                console.warn('Contest entry error for', candidate.full_name, contestError);
+                                // Still count as success since candidate was added
+                            }
+                        }
+                        
+                        successCount++;
+                        
+                    } catch (error) {
+                        console.error('Error adding candidate:', candidate.full_name, error);
+                    }
+                }
+
+                if (successCount === candidates.length) {
+                    statusDiv.innerHTML = `
+                        <div class="status success">
+                            ✅ Successfully added all ${successCount} test candidates!<br>
+                            • 3 approved candidates ready for voting<br>
+                            • 2 pending candidates for admin review<br><br>
+                            <strong>Next steps:</strong><br>
+                            1. Go to admin panel to approve pending candidates<br>
+                            2. Test the voting process with multiple candidates
+                        </div>
+                    `;
+                } else {
+                    statusDiv.innerHTML = `
+                        <div class="status error">
+                            ⚠️ Added ${successCount} out of ${candidates.length} candidates.<br>
+                            Some candidates may already exist or there was an error.
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                statusDiv.innerHTML = `
+                    <div class="status error">
+                        ❌ Error adding candidates: ${error.message}<br>
+                        Please check the console for details.
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

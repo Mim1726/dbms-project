@@ -101,16 +101,23 @@ class Elections {
         let html = '';
 
         // Ongoing Elections Section
-        if (ongoingElections.length > 0) {
             html += '<div class="election-section">';
             html += '<div class="section-header">';
             html += '<h2><i class="fas fa-play-circle"></i> Ongoing Elections</h2>';
             html += '<p class="section-description">Elections currently accepting votes</p>';
             html += '</div>';
-            html += '<div class="elections-grid">';
-            html += ongoingElections.map(election => this.renderElectionCard(election, 'ongoing')).join('');
-            html += '</div></div>';
-        }
+            if (ongoingElections.length > 0) {
+                html += '<div class="elections-grid">';
+                html += ongoingElections.map(election => this.renderElectionCard(election, 'ongoing')).join('');
+                html += '</div>';
+            } else {
+                html += `<div class="no-elections-card" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 0; background: #f8fafc; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin: 24px 0;">
+                    <i class="fas fa-info-circle" style="font-size: 48px; color: #38bdf8; margin-bottom: 16px;"></i>
+                    <h3 style="color: #334155; margin-bottom: 8px;">No Ongoing Election</h3>
+                    <p style="color: #64748b; font-size: 1.1em; text-align: center; max-width: 400px;">There are currently no elections accepting votes. Please check back later or explore upcoming and past elections below.</p>
+                </div>`;
+            }
+            html += '</div>';
 
         // Upcoming Elections Section
         if (upcomingElections.length > 0) {
@@ -513,6 +520,232 @@ class Elections {
             Utils.showToast('Error submitting application: ' + error.message, 'error');
         } finally {
             Utils.hideLoading();
+        }
+    }
+
+    // Load and display election results for voters
+    async loadResults() {
+        try {
+            console.log('Loading election results...');
+            
+            const resultsContainer = document.getElementById('resultsContainer');
+            if (!resultsContainer) {
+                console.error('Results container not found');
+                return;
+            }
+
+            Utils.showLoading();
+
+            // Get all elections with their schedules
+            const { data: elections, error: electionsError } = await window.supabase
+                .from('election')
+                .select(`
+                    *,
+                    schedule!inner(*)
+                `)
+                .order('created_at', { ascending: false });
+
+            if (electionsError) throw electionsError;
+
+            if (!elections || elections.length === 0) {
+                resultsContainer.innerHTML = `
+                    <div class="no-results">
+                        <i class="fas fa-chart-bar"></i>
+                        <h3>No Elections Found</h3>
+                        <p>There are no elections available to show results for.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Group elections by voting status
+            const now = new Date();
+            const completedElections = [];
+            const ongoingElections = [];
+            const upcomingElections = [];
+
+            elections.forEach(election => {
+                const schedule = election.schedule[0];
+                if (!schedule) return;
+
+                const votingStart = new Date(schedule.voting_start);
+                const votingEnd = new Date(schedule.voting_end);
+
+                if (now < votingStart) {
+                    upcomingElections.push(election);
+                } else if (now >= votingStart && now <= votingEnd) {
+                    ongoingElections.push(election);
+                } else {
+                    completedElections.push(election);
+                }
+            });
+
+            let html = '<div class="results-sections">';
+
+            // Show completed elections first (they have final results)
+            if (completedElections.length > 0) {
+                html += '<div class="results-category">';
+                html += '<h3><i class="fas fa-check-circle"></i> Completed Elections - Final Results</h3>';
+                for (const election of completedElections) {
+                    html += await this.generateElectionResultCard(election);
+                }
+                html += '</div>';
+            }
+
+            // Show ongoing elections (live results)
+            if (ongoingElections.length > 0) {
+                html += '<div class="results-category">';
+                html += '<h3><i class="fas fa-clock"></i> Ongoing Elections - Live Results</h3>';
+                for (const election of ongoingElections) {
+                    html += await this.generateElectionResultCard(election);
+                }
+                html += '</div>';
+            }
+
+            // Show upcoming elections (no results yet)
+            if (upcomingElections.length > 0) {
+                html += '<div class="results-category">';
+                html += '<h3><i class="fas fa-calendar-alt"></i> Upcoming Elections</h3>';
+                html += '<div class="upcoming-results-info">';
+                html += '<p>Results will be available once voting begins.</p>';
+                upcomingElections.forEach(election => {
+                    const schedule = election.schedule[0];
+                    const votingStart = new Date(schedule.voting_start);
+                    html += `
+                        <div class="upcoming-election-item">
+                            <strong>${election.title}</strong>
+                            <span>Voting starts: ${votingStart.toLocaleString()}</span>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                html += '</div>';
+            }
+
+            html += '</div>';
+
+            resultsContainer.innerHTML = html;
+
+        } catch (error) {
+            console.error('Error loading results:', error);
+            const resultsContainer = document.getElementById('resultsContainer');
+            if (resultsContainer) {
+                resultsContainer.innerHTML = `
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h3>Error Loading Results</h3>
+                        <p>Unable to load election results. Please try again later.</p>
+                        <button class="btn btn-primary" onclick="window.Elections.loadResults()">
+                            <i class="fas fa-sync"></i> Retry
+                        </button>
+                    </div>
+                `;
+            }
+        } finally {
+            Utils.hideLoading();
+        }
+    }
+
+    // Generate result card for an election
+    async generateElectionResultCard(election) {
+        try {
+            // Get candidates and results for this election
+            const { data: results, error: resultsError } = await window.supabase
+                .from('result')
+                .select(`
+                    *,
+                    candidate!inner(
+                        candidate_id,
+                        name,
+                        party,
+                        user_id
+                    )
+                `)
+                .eq('election_id', election.election_id)
+                .order('vote_count', { ascending: false });
+
+            if (resultsError) throw resultsError;
+
+            const schedule = election.schedule[0];
+            const votingStart = new Date(schedule.voting_start);
+            const votingEnd = new Date(schedule.voting_end);
+            const now = new Date();
+            const isCompleted = now > votingEnd;
+            const isOngoing = now >= votingStart && now <= votingEnd;
+
+            let html = `
+                <div class="election-result-card">
+                    <div class="election-result-header">
+                        <h4>${election.title}</h4>
+                        <div class="election-result-meta">
+                            <span class="election-type">${election.election_type}</span>
+                            <span class="voting-period">
+                                ${votingStart.toLocaleDateString()} - ${votingEnd.toLocaleDateString()}
+                            </span>
+                            ${isCompleted ? '<span class="status completed">Completed</span>' : 
+                              isOngoing ? '<span class="status ongoing">Live</span>' : 
+                              '<span class="status upcoming">Upcoming</span>'}
+                        </div>
+                    </div>
+                    <div class="election-result-body">
+            `;
+
+            if (results && results.length > 0) {
+                // Calculate total votes
+                const totalVotes = results.reduce((sum, result) => sum + (result.vote_count || 0), 0);
+                
+                html += `<div class="results-summary">
+                    <p><strong>Total Votes Cast:</strong> ${totalVotes}</p>
+                </div>`;
+
+                html += '<div class="candidates-results">';
+                results.forEach((result, index) => {
+                    const percentage = totalVotes > 0 ? ((result.vote_count || 0) / totalVotes * 100).toFixed(1) : 0;
+                    const isWinner = index === 0 && isCompleted && result.vote_count > 0;
+                    
+                    html += `
+                        <div class="candidate-result ${isWinner ? 'winner' : ''}">
+                            <div class="candidate-info">
+                                <span class="candidate-name">${result.candidate.name}</span>
+                                ${result.candidate.party ? `<span class="candidate-party">${result.candidate.party}</span>` : ''}
+                                ${isWinner ? '<i class="fas fa-crown winner-icon"></i>' : ''}
+                            </div>
+                            <div class="vote-stats">
+                                <span class="vote-count">${result.vote_count || 0} votes</span>
+                                <span class="vote-percentage">${percentage}%</span>
+                            </div>
+                            <div class="vote-bar">
+                                <div class="vote-fill" style="width: ${percentage}%"></div>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            } else {
+                html += `
+                    <div class="no-results">
+                        <p>No results available for this election yet.</p>
+                        ${isCompleted ? '<p>No votes were cast or no candidates are available.</p>' : 
+                          isOngoing ? '<p>Voting is ongoing - results will appear as votes are cast.</p>' : ''}
+                    </div>
+                `;
+            }
+
+            html += `
+                    </div>
+                </div>
+            `;
+
+            return html;
+
+        } catch (error) {
+            console.error('Error generating result card:', error);
+            return `
+                <div class="election-result-card error">
+                    <h4>${election.title}</h4>
+                    <p>Error loading results for this election.</p>
+                </div>
+            `;
         }
     }
 }
