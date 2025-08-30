@@ -39,10 +39,19 @@ class Elections {
         Utils.showLoading();
         
         try {
-            // Fetch elections and schedules
+            // Fetch elections with schedules
             const { data: elections, error } = await supabase
                 .from('election')
-                .select('*')
+                .select(`
+                    *,
+                    schedule (
+                        voting_start,
+                        voting_end,
+                        nomination_start,
+                        nomination_end,
+                        result_declared
+                    )
+                `)
                 .order('election_date', { ascending: false });
 
             if (error) throw error;
@@ -208,48 +217,57 @@ class Elections {
         console.log(`Election date: ${electionDate.toISOString()}`);
         console.log(`is_active: ${election.is_active}`);
         
-        // First check if election date has passed
-        if (electionDate < now) {
-            console.log(`Election ${election.name} has ended (date passed)`);
+        // Check if election has a schedule
+        if (election.schedule && election.schedule.length > 0) {
+            const schedule = election.schedule[0];
+            const votingStart = schedule.voting_start ? new Date(schedule.voting_start) : null;
+            const votingEnd = schedule.voting_end ? new Date(schedule.voting_end) : null;
+            
+            console.log(`Voting start: ${votingStart?.toISOString()}`);
+            console.log(`Voting end: ${votingEnd?.toISOString()}`);
+            
+            if (votingStart && votingEnd) {
+                // Has proper schedule - use it for status determination
+                if (now > votingEnd) {
+                    console.log(`Election ${election.name} has ended (voting end date passed)`);
+                    return 'Ended';
+                } else if (now >= votingStart && now <= votingEnd) {
+                    console.log(`Election ${election.name} is active (within voting period)`);
+                    return 'Active';
+                } else if (now < votingStart) {
+                    console.log(`Election ${election.name} is upcoming (voting not started)`);
+                    return 'Upcoming';
+                }
+            }
+        }
+        
+        // Fallback to election_date if no schedule or invalid schedule
+        console.log('Using election_date fallback for status determination');
+        
+        // Calculate days since election date
+        const daysDiff = (now - electionDate) / (1000 * 60 * 60 * 24);
+        console.log(`Days since election date: ${daysDiff}`);
+        
+        // If election date has passed by more than 1 day, it's ended
+        if (daysDiff > 1) {
+            console.log(`Election ${election.name} has ended (${Math.round(daysDiff)} days past election date)`);
             return 'Ended';
         }
         
-        // Calculate days until election
-        const daysDiff = (electionDate - now) / (1000 * 60 * 60 * 24);
-        console.log(`Days until election: ${daysDiff}`);
-        
-        // Check if it's election day (within 1 day)
+        // If election date is today or within 1 day
         if (Math.abs(daysDiff) <= 1) {
             if (election.is_active === 'Y') {
                 console.log(`Election ${election.name} is active (election day and marked active)`);
                 return 'Active';
             } else {
-                console.log(`Election ${election.name} is scheduled for today but not active`);
-                return 'PreVoting';
+                console.log(`Election ${election.name} has ended (election day but not active)`);
+                return 'Ended';
             }
         }
         
-        // For future elections
-        if (daysDiff > 30) {
-            // More than 30 days away
-            if (election.is_active === 'Y') {
-                // Even if marked active, if it's far in future, it should be upcoming
-                console.log(`Election ${election.name} is upcoming (${Math.round(daysDiff)} days away, will be active later)`);
-                return 'Upcoming';
-            } else {
-                console.log(`Election ${election.name} is upcoming (${Math.round(daysDiff)} days away)`);
-                return 'Upcoming';
-            }
-        } else {
-            // Within 30 days
-            if (election.is_active === 'Y') {
-                console.log(`Election ${election.name} is active (within 30 days and marked active)`);
-                return 'Active';
-            } else {
-                console.log(`Election ${election.name} is in pre-voting period (within 30 days but not active)`);
-                return 'PreVoting';
-            }
-        }
+        // Future election
+        console.log(`Election ${election.name} is upcoming (future date)`);
+        return 'Upcoming';
     }
 
     // Get appropriate actions for election based on status and category

@@ -2287,58 +2287,50 @@ class Admin {
             const ongoingElections = [];
             const completedElections = [];
 
-            // Categorize elections based on voting schedule
+            // Categorize elections based on proper status checking
             for (const election of elections) {
-                const schedule = election.schedule?.[0]; // Get first schedule if exists
-                
-                let isOngoing = false;
+                const schedule = election.schedule?.[0];
                 let isCompleted = false;
                 
                 if (schedule) {
                     // Use schedule dates if available
-                    const votingStart = schedule.voting_start ? new Date(schedule.voting_start) : null;
                     const votingEnd = schedule.voting_end ? new Date(schedule.voting_end) : null;
                     
-                    if (votingStart && votingEnd) {
-                        // Has proper schedule
-                        if (currentDate >= votingStart && currentDate <= votingEnd && election.is_active === 'Y') {
-                            isOngoing = true;
-                        } else if (currentDate > votingEnd || election.is_active === 'N') {
-                            isCompleted = true;
-                        }
-                        // Skip if voting hasn't started yet (upcoming)
-                    } else {
-                        // Fallback to election_date if no schedule
+                    if (votingEnd && currentDate > votingEnd) {
+                        isCompleted = true;
+                    } else if (!votingEnd) {
+                        // Fallback to election_date + 1 day
                         const electionDate = new Date(election.election_date);
-                        if (electionDate <= currentDate && election.is_active === 'Y') {
-                            isOngoing = true;
-                        } else if (electionDate <= currentDate || election.is_active === 'N') {
+                        const electionEndDate = new Date(electionDate);
+                        electionEndDate.setDate(electionEndDate.getDate() + 1); // Add 1 day buffer
+                        
+                        if (currentDate > electionEndDate) {
                             isCompleted = true;
                         }
                     }
                 } else {
-                    // No schedule, use election_date
+                    // No schedule, use election_date + 1 day buffer
                     const electionDate = new Date(election.election_date);
-                    if (electionDate <= currentDate && election.is_active === 'Y') {
-                        isOngoing = true;
-                    } else if (electionDate <= currentDate || election.is_active === 'N') {
+                    const electionEndDate = new Date(electionDate);
+                    electionEndDate.setDate(electionEndDate.getDate() + 1); // Add 1 day buffer
+                    
+                    if (currentDate > electionEndDate) {
                         isCompleted = true;
                     }
                 }
                 
-                if (isOngoing) {
-                    ongoingElections.push(election);
-                } else if (isCompleted) {
+                if (isCompleted) {
                     completedElections.push(election);
+                } else {
+                    ongoingElections.push(election);
                 }
-                // Skip upcoming elections
             }
 
             const generateElectionResultsHTML = async (election, isCompleted = false) => {
-                // First, try to calculate results if they don't exist
+                // Calculate results if they don't exist
                 await this.calculateResultsForElection(election.election_id);
                 
-                // Get results for this election
+                // Get detailed results with candidate information
                 const { data: results, error: resultsError } = await supabase
                     .from('result')
                     .select(`
@@ -2346,7 +2338,8 @@ class Admin {
                         candidate(
                             full_name,
                             party,
-                            symbol
+                            symbol,
+                            candidate_id
                         )
                     `)
                     .eq('election_id', election.election_id)
@@ -2357,7 +2350,41 @@ class Admin {
                     return '';
                 }
 
-                // Check if results have been declared (winner published)
+                // Get detailed voting data for this election
+                const { data: votingDetails, error: votingError } = await supabase
+                    .from('vote')
+                    .select(`
+                        vote_id,
+                        vote_timestamp,
+                        ip_address,
+                        voter_id,
+                        contest_id,
+                        contest (
+                            candidate_id,
+                            candidate (
+                                full_name,
+                                party
+                            )
+                        )
+                    `)
+                    .in('contest_id', 
+                        results?.map(r => r.candidate?.candidate_id).filter(Boolean) || []
+                    )
+                    .order('vote_timestamp', { ascending: false });
+
+                // Get all voters who participated
+                const voterIds = [...new Set(votingDetails?.map(v => v.voter_id) || [])];
+                const { data: voters } = await supabase
+                    .from('voter')
+                    .select('voter_id, full_name, email')
+                    .in('voter_id', voterIds);
+
+                const voterMap = {};
+                voters?.forEach(voter => {
+                    voterMap[voter.voter_id] = voter;
+                });
+
+                // Check if winner has been declared
                 let winnerDeclared = false;
                 let winnerCandidateId = null;
                 
@@ -2371,14 +2398,13 @@ class Admin {
                     winnerDeclared = winnerData?.winner_declared === 'Y';
                     winnerCandidateId = winnerData?.winner_candidate_id;
                 } catch (error) {
-                    // Columns don't exist yet, use defaults
                     console.log('Winner declaration columns not available:', error);
                 }
 
                 const totalVotes = results ? results.reduce((sum, result) => sum + (result.total_votes || 0), 0) : 0;
                 const schedule = election.schedule?.[0];
                 
-                // Format date and time information
+                // Format comprehensive date and time information
                 let dateTimeInfo = '';
                 if (schedule) {
                     const votingStart = schedule.voting_start ? new Date(schedule.voting_start) : null;
@@ -2395,6 +2421,9 @@ class Admin {
                             });
                         };
                         
+                        const duration = votingEnd - votingStart;
+                        const durationHours = Math.round(duration / (1000 * 60 * 60));
+                        
                         dateTimeInfo = `
                             <div class="schedule-info">
                                 <div class="schedule-item">
@@ -2405,11 +2434,14 @@ class Admin {
                                     <i class="fas fa-stop-circle"></i>
                                     <span>${isCompleted ? 'Ended' : 'Ends'}: ${formatDateTime(votingEnd)}</span>
                                 </div>
+                                <div class="schedule-item">
+                                    <i class="fas fa-clock"></i>
+                                    <span>Duration: ${durationHours} hours</span>
+                                </div>
                             </div>
                         `;
                     }
                 } else {
-                    // Fallback to election date
                     const electionDate = new Date(election.election_date);
                     dateTimeInfo = `
                         <div class="schedule-info">
@@ -2422,7 +2454,7 @@ class Admin {
                 }
 
                 return `
-                    <div class="election-results">
+                    <div class="election-results-card">
                         <div class="result-header">
                             <div class="result-title">
                                 <h4>${Utils.sanitizeHtml(election.name)}</h4>
@@ -2435,24 +2467,37 @@ class Admin {
                                         <i class="fas fa-users"></i>
                                         Total Votes: ${totalVotes}
                                     </span>
+                                    <span class="participant-count">
+                                        <i class="fas fa-user-check"></i>
+                                        Participants: ${voterIds.length}
+                                    </span>
                                     <span class="status-badge ${isCompleted ? 'completed' : 'ongoing'}">${isCompleted ? 'Completed' : 'Ongoing'}</span>
                                     ${winnerDeclared ? '<span class="status-badge declared">Winner Declared</span>' : ''}
                                 </div>
                                 ${dateTimeInfo}
                             </div>
                             <div class="result-actions">
+                                <button class="btn btn-small btn-primary" onclick="window.Admin.viewDetailedResults('${election.election_id}')" title="View Detailed Voting Analysis">
+                                    <i class="fas fa-chart-line"></i> Detailed Analysis
+                                </button>
                                 ${isCompleted ? `
                                     ${!winnerDeclared && results && results.length > 0 ? `
                                         <button class="btn btn-small btn-success" onclick="window.Admin.declareWinner('${election.election_id}')" title="Declare Winner">
                                             <i class="fas fa-trophy"></i> Declare Winner
                                         </button>
                                     ` : ''}
-                                    <button class="btn btn-small btn-primary" onclick="window.Admin.refreshResults('${election.election_id}')" title="Recalculate Results">
-                                        <i class="fas fa-sync"></i> Refresh Results
+                                    <button class="btn btn-small btn-outline" onclick="window.Admin.refreshResults('${election.election_id}')" title="Recalculate Results">
+                                        <i class="fas fa-sync"></i> Refresh
+                                    </button>
+                                    <button class="btn btn-small btn-info" onclick="window.Admin.exportResults('${election.election_id}')" title="Export Results to CSV">
+                                        <i class="fas fa-download"></i> Export
                                     </button>
                                 ` : `
                                     <button class="btn btn-small btn-primary" onclick="window.Admin.refreshResults('${election.election_id}')" title="Refresh Live Results">
-                                        <i class="fas fa-sync"></i> Refresh Results
+                                        <i class="fas fa-sync"></i> Refresh Live
+                                    </button>
+                                    <button class="btn btn-small btn-warning" onclick="window.Admin.endElection('${election.election_id}')" title="End Election Early">
+                                        <i class="fas fa-stop"></i> End Early
                                     </button>
                                 `}
                             </div>
@@ -2463,6 +2508,12 @@ class Admin {
                                 ${results.map((result, index) => {
                                     const isWinner = winnerDeclared && result.candidate_id === winnerCandidateId;
                                     const isLeading = index === 0 && result.total_votes > 0;
+                                    
+                                    // Get votes for this candidate
+                                    const candidateVotes = votingDetails?.filter(v => 
+                                        v.contest?.candidate_id === result.candidate_id
+                                    ) || [];
+                                    
                                     return `
                                         <div class="candidate-result ${isWinner ? 'declared-winner' : isLeading ? 'leading' : ''}">
                                             <div class="candidate-info">
@@ -2481,9 +2532,17 @@ class Admin {
                                                 <div class="vote-percentage">
                                                     ${result.percentage ? result.percentage.toFixed(1) : '0.0'}%
                                                 </div>
+                                                <div class="vote-details">
+                                                    <small>${candidateVotes.length} individual votes</small>
+                                                </div>
                                                 <div class="vote-bar">
                                                     <div class="vote-fill ${isWinner ? 'winner-fill' : isLeading ? 'leading-fill' : ''}" style="width: ${result.percentage || 0}%"></div>
                                                 </div>
+                                            </div>
+                                            <div class="candidate-actions">
+                                                <button class="btn btn-tiny btn-outline" onclick="window.Admin.viewCandidateVotes('${result.candidate_id}', '${election.election_id}')" title="View who voted for this candidate">
+                                                    <i class="fas fa-users"></i> View Voters
+                                                </button>
                                             </div>
                                         </div>
                                     `;
@@ -2491,6 +2550,7 @@ class Admin {
                             </div>
                         ` : `
                             <div class="no-results">
+                                <i class="fas fa-chart-bar" style="font-size: 32px; color: #a0aec0; margin-bottom: 12px;"></i>
                                 <p>No results available for this election yet.</p>
                                 ${isCompleted ? '<p>No votes were cast or no candidates are available.</p>' : '<p>Voting is ongoing - results will appear as votes are cast.</p>'}
                                 <button class="btn btn-small btn-primary" onclick="window.Admin.refreshResults('${election.election_id}')" style="margin-top: 12px;">
@@ -2518,42 +2578,70 @@ class Admin {
                 <div class="admin-section">
                     <div class="section-header">
                         <div>
-                            <h3>Election Results</h3>
-                            <p>View voting results, live counts, and declare winners</p>
+                            <h3>
+                                <i class="fas fa-chart-bar"></i>
+                                Election Results & Analytics
+                            </h3>
+                            <p>Comprehensive voting results, live counts, detailed analysis, and winner declarations</p>
                         </div>
                         <div class="section-actions">
                             <button class="btn btn-primary" onclick="window.Admin.publishAllResults()">
-                                <i class="fas fa-chart-bar"></i> Update All Results
+                                <i class="fas fa-sync-alt"></i> Refresh All Results
+                            </button>
+                            <button class="btn btn-success" onclick="window.Admin.generateResultsReport()">
+                                <i class="fas fa-file-excel"></i> Generate Report
                             </button>
                         </div>
                     </div>
                     
-                    <div class="results-container">
+                    <div class="results-dashboard">
                         ${ongoingElections.length > 0 ? `
-                            <div class="results-section">
-                                <h4 class="section-title">
-                                    <i class="fas fa-clock"></i> Ongoing Elections
-                                    <span class="count">(${ongoingElections.length})</span>
-                                </h4>
-                                ${ongoingHTML}
+                            <div class="results-section ongoing">
+                                <div class="section-title-bar">
+                                    <h4 class="section-title">
+                                        <i class="fas fa-clock"></i> 
+                                        Ongoing Elections
+                                        <span class="count">(${ongoingElections.length})</span>
+                                    </h4>
+                                    <span class="live-indicator">
+                                        <span class="pulse-dot"></span>
+                                        Live Results
+                                    </span>
+                                </div>
+                                <div class="results-grid">
+                                    ${ongoingHTML}
+                                </div>
                             </div>
                         ` : ''}
                         
                         ${completedElections.length > 0 ? `
-                            <div class="results-section">
-                                <h4 class="section-title">
-                                    <i class="fas fa-check-circle"></i> Completed Elections
-                                    <span class="count">(${completedElections.length})</span>
-                                </h4>
-                                ${completedHTML}
+                            <div class="results-section completed">
+                                <div class="section-title-bar">
+                                    <h4 class="section-title">
+                                        <i class="fas fa-check-circle"></i> 
+                                        Completed Elections
+                                        <span class="count">(${completedElections.length})</span>
+                                    </h4>
+                                </div>
+                                <div class="results-grid">
+                                    ${completedHTML}
+                                </div>
                             </div>
                         ` : ''}
                         
                         ${ongoingElections.length === 0 && completedElections.length === 0 ? `
-                            <div class="no-elections">
-                                <i class="fas fa-chart-bar" style="font-size: 48px; color: #a0aec0; margin-bottom: 20px;"></i>
+                            <div class="no-elections-dashboard">
+                                <i class="fas fa-chart-bar" style="font-size: 64px; color: #a0aec0; margin-bottom: 24px;"></i>
                                 <h4>No Elections with Results</h4>
                                 <p>No ongoing or completed elections found. Results will appear here once elections are active or completed.</p>
+                                <div class="dashboard-actions">
+                                    <button class="btn btn-primary" onclick="window.Admin.showTab('elections')">
+                                        <i class="fas fa-plus"></i> Create Election
+                                    </button>
+                                    <button class="btn btn-outline" onclick="window.Admin.loadResultsTab(document.querySelector('#adminTabContent'))">
+                                        <i class="fas fa-sync"></i> Refresh
+                                    </button>
+                                </div>
                             </div>
                         ` : ''}
                     </div>
@@ -2577,6 +2665,732 @@ class Admin {
         } finally {
             Utils.hideLoading();
         }
+    }
+
+    // View detailed results with comprehensive analysis
+    async viewDetailedResults(electionId) {
+        try {
+            Utils.showLoading();
+
+            // Get election details
+            const { data: election, error: electionError } = await supabase
+                .from('election')
+                .select(`
+                    *,
+                    schedule (
+                        voting_start,
+                        voting_end,
+                        nomination_start,
+                        nomination_end
+                    )
+                `)
+                .eq('election_id', electionId)
+                .single();
+
+            if (electionError) throw electionError;
+
+            // Get detailed voting data
+            const { data: votes, error: votesError } = await supabase
+                .from('vote')
+                .select(`
+                    *,
+                    contest (
+                        candidate_id,
+                        candidate (
+                            full_name,
+                            party,
+                            symbol
+                        )
+                    ),
+                    voter (
+                        voter_id,
+                        full_name,
+                        email
+                    )
+                `)
+                .in('contest_id', 
+                    // First get all contest IDs for this election
+                    (await supabase
+                        .from('contest')
+                        .select('contest_id')
+                        .eq('election_id', electionId)
+                    ).data?.map(c => c.contest_id) || []
+                )
+                .order('vote_timestamp', { ascending: false });
+
+            if (votesError) throw votesError;
+
+            // Get all candidates for this election
+            const { data: candidates, error: candidatesError } = await supabase
+                .from('candidate')
+                .select('*')
+                .eq('election_id', electionId);
+
+            if (candidatesError) throw candidatesError;
+
+            // Get results
+            const { data: results, error: resultsError } = await supabase
+                .from('result')
+                .select('*')
+                .eq('election_id', electionId)
+                .order('total_votes', { ascending: false });
+
+            if (resultsError) throw resultsError;
+
+            // Calculate statistics
+            const totalVotes = votes?.length || 0;
+            const uniqueVoters = [...new Set(votes?.map(v => v.voter_id) || [])].length;
+            const candidateCount = candidates?.length || 0;
+            
+            // Time-based analysis
+            const votingPattern = {};
+            votes?.forEach(vote => {
+                const hour = new Date(vote.vote_timestamp).getHours();
+                votingPattern[hour] = (votingPattern[hour] || 0) + 1;
+            });
+
+            // Voter participation analysis
+            const voterStats = {};
+            votes?.forEach(vote => {
+                const candidateId = vote.contest?.candidate_id;
+                const candidateName = vote.contest?.candidate?.full_name;
+                if (!voterStats[candidateId]) {
+                    voterStats[candidateId] = {
+                        candidateName,
+                        voters: []
+                    };
+                }
+                voterStats[candidateId].voters.push({
+                    voterName: vote.voter?.full_name,
+                    voterEmail: vote.voter?.email,
+                    timestamp: vote.vote_timestamp,
+                    ipAddress: vote.ip_address
+                });
+            });
+
+            // Create detailed modal
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay detailed-results-modal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.7);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 2000;
+                padding: 20px;
+                box-sizing: border-box;
+            `;
+
+            const schedule = election.schedule?.[0];
+            const votingStart = schedule?.voting_start ? new Date(schedule.voting_start) : null;
+            const votingEnd = schedule?.voting_end ? new Date(schedule.voting_end) : null;
+
+            modal.innerHTML = `
+                <div class="detailed-results-content" style="
+                    background: white;
+                    border-radius: 16px;
+                    max-width: 1200px;
+                    width: 100%;
+                    max-height: 90vh;
+                    overflow-y: auto;
+                    box-shadow: 0 25px 75px rgba(0, 0, 0, 0.3);
+                    position: relative;
+                ">
+                    <div class="modal-header" style="
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        padding: 24px;
+                        border-radius: 16px 16px 0 0;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    ">
+                        <div>
+                            <h2 style="margin: 0; font-size: 24px; font-weight: 600;">
+                                <i class="fas fa-chart-line"></i> Detailed Election Analysis
+                            </h2>
+                            <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 16px;">
+                                ${election.name} - Complete Voting Analytics
+                            </p>
+                        </div>
+                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()" style="
+                            background: none;
+                            border: none;
+                            color: white;
+                            font-size: 24px;
+                            cursor: pointer;
+                            padding: 8px;
+                            border-radius: 4px;
+                        ">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="modal-body" style="padding: 24px;">
+                        <!-- Election Overview -->
+                        <div class="analysis-section" style="margin-bottom: 32px;">
+                            <h3 style="color: #334155; font-size: 20px; margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
+                                <i class="fas fa-info-circle"></i> Election Overview
+                            </h3>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                                <div class="stat-card" style="background: #f8fafc; padding: 16px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                                    <div style="font-size: 24px; font-weight: bold; color: #1e40af;">${totalVotes}</div>
+                                    <div style="color: #64748b; font-size: 14px;">Total Votes Cast</div>
+                                </div>
+                                <div class="stat-card" style="background: #f8fafc; padding: 16px; border-radius: 8px; border-left: 4px solid #10b981;">
+                                    <div style="font-size: 24px; font-weight: bold; color: #059669;">${uniqueVoters}</div>
+                                    <div style="color: #64748b; font-size: 14px;">Unique Voters</div>
+                                </div>
+                                <div class="stat-card" style="background: #f8fafc; padding: 16px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                                    <div style="font-size: 24px; font-weight: bold; color: #d97706;">${candidateCount}</div>
+                                    <div style="color: #64748b; font-size: 14px;">Total Candidates</div>
+                                </div>
+                                <div class="stat-card" style="background: #f8fafc; padding: 16px; border-radius: 8px; border-left: 4px solid #8b5cf6;">
+                                    <div style="font-size: 24px; font-weight: bold; color: #7c3aed;">${uniqueVoters > 0 ? (totalVotes / uniqueVoters).toFixed(1) : '0'}</div>
+                                    <div style="color: #64748b; font-size: 14px;">Avg Votes/Voter</div>
+                                </div>
+                            </div>
+                            ${votingStart && votingEnd ? `
+                                <div style="margin-top: 16px; padding: 16px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                                    <strong>Voting Period:</strong> ${votingStart.toLocaleString()} to ${votingEnd.toLocaleString()}
+                                    <br>
+                                    <strong>Duration:</strong> ${Math.round((votingEnd - votingStart) / (1000 * 60 * 60))} hours
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <!-- Candidate-wise Detailed Results -->
+                        <div class="analysis-section" style="margin-bottom: 32px;">
+                            <h3 style="color: #334155; font-size: 20px; margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
+                                <i class="fas fa-users"></i> Candidate-wise Voting Details
+                            </h3>
+                            ${Object.entries(voterStats).map(([candidateId, stats]) => `
+                                <div class="candidate-detail-card" style="
+                                    background: white;
+                                    border: 1px solid #e2e8f0;
+                                    border-radius: 12px;
+                                    padding: 20px;
+                                    margin-bottom: 16px;
+                                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                                ">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                        <h4 style="margin: 0; color: #1e293b; font-size: 18px;">
+                                            ${stats.candidateName || 'Unknown Candidate'}
+                                        </h4>
+                                        <span style="
+                                            background: #3b82f6;
+                                            color: white;
+                                            padding: 4px 12px;
+                                            border-radius: 20px;
+                                            font-weight: 500;
+                                            font-size: 14px;
+                                        ">
+                                            ${stats.voters.length} votes
+                                        </span>
+                                    </div>
+                                    
+                                    <div class="voters-list" style="
+                                        max-height: 200px;
+                                        overflow-y: auto;
+                                        border: 1px solid #f1f5f9;
+                                        border-radius: 8px;
+                                        padding: 12px;
+                                        background: #fafafa;
+                                    ">
+                                        ${stats.voters.length > 0 ? `
+                                            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                                                <thead>
+                                                    <tr style="background: #f8fafc;">
+                                                        <th style="padding: 8px; text-align: left; border-bottom: 1px solid #e2e8f0;">Voter</th>
+                                                        <th style="padding: 8px; text-align: left; border-bottom: 1px solid #e2e8f0;">Email</th>
+                                                        <th style="padding: 8px; text-align: left; border-bottom: 1px solid #e2e8f0;">Vote Time</th>
+                                                        <th style="padding: 8px; text-align: left; border-bottom: 1px solid #e2e8f0;">IP Address</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    ${stats.voters.map(voter => `
+                                                        <tr>
+                                                            <td style="padding: 8px; border-bottom: 1px solid #f1f5f9;">${voter.voterName || 'Anonymous'}</td>
+                                                            <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; color: #64748b;">${voter.voterEmail || 'N/A'}</td>
+                                                            <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; color: #64748b;">
+                                                                ${new Date(voter.timestamp).toLocaleString()}
+                                                            </td>
+                                                            <td style="padding: 8px; border-bottom: 1px solid #f1f5f9; color: #64748b; font-family: monospace;">
+                                                                ${voter.ipAddress || 'N/A'}
+                                                            </td>
+                                                        </tr>
+                                                    `).join('')}
+                                                </tbody>
+                                            </table>
+                                        ` : `
+                                            <p style="color: #64748b; text-align: center; margin: 0;">No votes recorded for this candidate</p>
+                                        `}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <!-- Voting Timeline -->
+                        ${totalVotes > 0 ? `
+                            <div class="analysis-section" style="margin-bottom: 32px;">
+                                <h3 style="color: #334155; font-size: 20px; margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
+                                    <i class="fas fa-clock"></i> Voting Timeline (Hourly Distribution)
+                                </h3>
+                                <div class="timeline-chart" style="
+                                    background: #f8fafc;
+                                    padding: 20px;
+                                    border-radius: 12px;
+                                    border: 1px solid #e2e8f0;
+                                ">
+                                    ${Object.entries(votingPattern).sort(([a], [b]) => parseInt(a) - parseInt(b)).map(([hour, count]) => `
+                                        <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                                            <span style="width: 80px; font-weight: 500; color: #64748b;">
+                                                ${hour.padStart(2, '0')}:00
+                                            </span>
+                                            <div style="
+                                                background: #3b82f6;
+                                                height: 20px;
+                                                width: ${(count / Math.max(...Object.values(votingPattern))) * 300}px;
+                                                border-radius: 4px;
+                                                margin-right: 8px;
+                                            "></div>
+                                            <span style="color: #374151; font-weight: 500;">${count} votes</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="modal-footer" style="
+                        padding: 20px 24px;
+                        border-top: 1px solid #e2e8f0;
+                        display: flex;
+                        gap: 12px;
+                        justify-content: center;
+                        background: #f8fafc;
+                        border-radius: 0 0 16px 16px;
+                    ">
+                        <button class="btn btn-primary" onclick="window.Admin.exportDetailedResults('${electionId}')" style="
+                            background: #3b82f6;
+                            color: white;
+                            border: none;
+                            padding: 12px 24px;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-weight: 500;
+                        ">
+                            <i class="fas fa-download"></i> Export Full Report
+                        </button>
+                        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()" style="
+                            background: #6b7280;
+                            color: white;
+                            border: none;
+                            padding: 12px 24px;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-weight: 500;
+                        ">
+                            <i class="fas fa-times"></i> Close
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+
+            // Add backdrop click to close
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+
+        } catch (error) {
+            console.error('Error loading detailed results:', error);
+            Utils.showToast('Error loading detailed results: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    }
+
+    // View voters for a specific candidate
+    async viewCandidateVotes(candidateId, electionId) {
+        try {
+            Utils.showLoading();
+
+            // Get candidate info
+            const { data: candidate, error: candidateError } = await supabase
+                .from('candidate')
+                .select('*')
+                .eq('candidate_id', candidateId)
+                .single();
+
+            if (candidateError) throw candidateError;
+
+            // Get votes for this candidate
+            const { data: votes, error: votesError } = await supabase
+                .from('vote')
+                .select(`
+                    *,
+                    voter (
+                        voter_id,
+                        full_name,
+                        email
+                    )
+                `)
+                .in('contest_id', 
+                    (await supabase
+                        .from('contest')
+                        .select('contest_id')
+                        .eq('candidate_id', candidateId)
+                        .eq('election_id', electionId)
+                    ).data?.map(c => c.contest_id) || []
+                )
+                .order('vote_timestamp', { ascending: false });
+
+            if (votesError) throw votesError;
+
+            // Create modal
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.6);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 1500;
+                padding: 20px;
+                box-sizing: border-box;
+            `;
+
+            modal.innerHTML = `
+                <div class="candidate-votes-modal" style="
+                    background: white;
+                    border-radius: 12px;
+                    max-width: 800px;
+                    width: 100%;
+                    max-height: 80vh;
+                    overflow-y: auto;
+                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                ">
+                    <div class="modal-header" style="
+                        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                        color: white;
+                        padding: 20px;
+                        border-radius: 12px 12px 0 0;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    ">
+                        <div>
+                            <h3 style="margin: 0; font-size: 20px; font-weight: 600;">
+                                <i class="fas fa-users"></i> Voters for ${candidate.full_name}
+                            </h3>
+                            <p style="margin: 8px 0 0 0; opacity: 0.9;">
+                                ${votes?.length || 0} total votes received
+                            </p>
+                        </div>
+                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()" style="
+                            background: none;
+                            border: none;
+                            color: white;
+                            font-size: 20px;
+                            cursor: pointer;
+                            padding: 5px;
+                            border-radius: 4px;
+                        ">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="modal-body" style="padding: 20px;">
+                        ${votes && votes.length > 0 ? `
+                            <div class="votes-table-container">
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead>
+                                        <tr style="background: #f8fafc;">
+                                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #374151;">#</th>
+                                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #374151;">Voter Name</th>
+                                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #374151;">Email</th>
+                                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #374151;">Vote Time</th>
+                                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #374151;">IP Address</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${votes.map((vote, index) => `
+                                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                                <td style="padding: 12px; color: #64748b;">${index + 1}</td>
+                                                <td style="padding: 12px; font-weight: 500; color: #1e293b;">
+                                                    ${vote.voter?.full_name || 'Anonymous Voter'}
+                                                </td>
+                                                <td style="padding: 12px; color: #64748b;">
+                                                    ${vote.voter?.email || 'N/A'}
+                                                </td>
+                                                <td style="padding: 12px; color: #64748b;">
+                                                    ${new Date(vote.vote_timestamp).toLocaleString()}
+                                                </td>
+                                                <td style="padding: 12px; color: #64748b; font-family: monospace; font-size: 12px;">
+                                                    ${vote.ip_address || 'N/A'}
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ` : `
+                            <div style="text-align: center; padding: 40px 20px;">
+                                <i class="fas fa-inbox" style="font-size: 48px; color: #a0aec0; margin-bottom: 16px;"></i>
+                                <h4 style="color: #374151; margin-bottom: 8px;">No Votes Recorded</h4>
+                                <p style="color: #64748b;">This candidate has not received any votes yet.</p>
+                            </div>
+                        `}
+                    </div>
+                    
+                    <div class="modal-footer" style="
+                        padding: 16px 20px;
+                        border-top: 1px solid #e2e8f0;
+                        display: flex;
+                        justify-content: center;
+                        background: #f8fafc;
+                        border-radius: 0 0 12px 12px;
+                    ">
+                        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()" style="
+                            background: #6b7280;
+                            color: white;
+                            border: none;
+                            padding: 10px 20px;
+                            border-radius: 6px;
+                            cursor: pointer;
+                            font-weight: 500;
+                        ">Close</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+
+        } catch (error) {
+            console.error('Error loading candidate votes:', error);
+            Utils.showToast('Error loading candidate votes: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    }
+
+    // Export results to CSV
+    async exportResults(electionId) {
+        try {
+            Utils.showLoading();
+
+            // Get election details
+            const { data: election, error: electionError } = await supabase
+                .from('election')
+                .select('*')
+                .eq('election_id', electionId)
+                .single();
+
+            if (electionError) throw electionError;
+
+            // Get results
+            const { data: results, error: resultsError } = await supabase
+                .from('result')
+                .select(`
+                    *,
+                    candidate (
+                        full_name,
+                        party,
+                        symbol
+                    )
+                `)
+                .eq('election_id', electionId)
+                .order('total_votes', { ascending: false });
+
+            if (resultsError) throw resultsError;
+
+            // Create CSV content
+            let csvContent = `Election Results Report\n`;
+            csvContent += `Election: ${election.name}\n`;
+            csvContent += `Type: ${election.election_type}\n`;
+            csvContent += `Date: ${Utils.formatDate(election.election_date)}\n`;
+            csvContent += `Generated: ${new Date().toLocaleString()}\n\n`;
+            csvContent += `Rank,Candidate Name,Party,Symbol,Total Votes,Percentage\n`;
+
+            results?.forEach((result, index) => {
+                csvContent += `${index + 1},`;
+                csvContent += `"${result.candidate?.full_name || 'Unknown'}",`;
+                csvContent += `"${result.candidate?.party || 'Independent'}",`;
+                csvContent += `"${result.candidate?.symbol || 'N/A'}",`;
+                csvContent += `${result.total_votes || 0},`;
+                csvContent += `${result.percentage ? result.percentage.toFixed(2) : '0.00'}%\n`;
+            });
+
+            // Download CSV
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `${election.name.replace(/\s+/g, '_')}_Results_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            Utils.showToast('Results exported successfully!', 'success');
+
+        } catch (error) {
+            console.error('Error exporting results:', error);
+            Utils.showToast('Error exporting results: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    }
+
+    // End election early
+    async endElection(electionId) {
+        try {
+            const confirmed = confirm('Are you sure you want to end this election early?\n\nThis will:\n- Stop accepting new votes\n- Mark the election as completed\n- Allow result declaration\n\nThis action cannot be undone.');
+            
+            if (!confirmed) return;
+
+            Utils.showLoading();
+
+            // Update election to inactive and set end time
+            const { error: electionError } = await supabase
+                .from('election')
+                .update({ 
+                    is_active: 'N'
+                })
+                .eq('election_id', electionId);
+
+            if (electionError) throw electionError;
+
+            // Update schedule end time to now
+            const { error: scheduleError } = await supabase
+                .from('schedule')
+                .update({ 
+                    voting_end: new Date().toISOString()
+                })
+                .eq('election_id', electionId);
+
+            if (scheduleError) {
+                console.warn('Could not update schedule:', scheduleError);
+            }
+
+            Utils.showToast('Election ended successfully!', 'success');
+            
+            // Refresh results tab
+            const container = document.querySelector('#adminTabContent');
+            if (container) {
+                this.loadResultsTab(container);
+            }
+
+        } catch (error) {
+            console.error('Error ending election:', error);
+            Utils.showToast('Error ending election: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    }
+
+    // Generate comprehensive results report
+    async generateResultsReport() {
+        try {
+            Utils.showLoading();
+
+            // Get all elections with results
+            const { data: elections, error: electionsError } = await supabase
+                .from('election')
+                .select(`
+                    *,
+                    schedule (
+                        voting_start,
+                        voting_end
+                    )
+                `)
+                .order('election_date', { ascending: false });
+
+            if (electionsError) throw electionsError;
+
+            let reportContent = `ELECTION MANAGEMENT SYSTEM - COMPREHENSIVE REPORT\n`;
+            reportContent += `Generated: ${new Date().toLocaleString()}\n`;
+            reportContent += `Total Elections: ${elections?.length || 0}\n\n`;
+
+            for (const election of elections || []) {
+                reportContent += `\n${'='.repeat(60)}\n`;
+                reportContent += `ELECTION: ${election.name}\n`;
+                reportContent += `${'='.repeat(60)}\n`;
+                reportContent += `Type: ${election.election_type}\n`;
+                reportContent += `Date: ${Utils.formatDate(election.election_date)}\n`;
+                
+                const schedule = election.schedule?.[0];
+                if (schedule) {
+                    reportContent += `Voting Period: ${new Date(schedule.voting_start).toLocaleString()} to ${new Date(schedule.voting_end).toLocaleString()}\n`;
+                }
+                
+                reportContent += `Status: ${election.is_active === 'Y' ? 'Active' : 'Completed'}\n\n`;
+
+                // Get results for this election
+                const { data: results } = await supabase
+                    .from('result')
+                    .select(`
+                        *,
+                        candidate (
+                            full_name,
+                            party,
+                            symbol
+                        )
+                    `)
+                    .eq('election_id', election.election_id)
+                    .order('total_votes', { ascending: false });
+
+                if (results && results.length > 0) {
+                    reportContent += `RESULTS:\n`;
+                    reportContent += `${'─'.repeat(50)}\n`;
+                    results.forEach((result, index) => {
+                        reportContent += `${index + 1}. ${result.candidate?.full_name || 'Unknown'}\n`;
+                        reportContent += `   Party: ${result.candidate?.party || 'Independent'}\n`;
+                        reportContent += `   Votes: ${result.total_votes || 0} (${result.percentage ? result.percentage.toFixed(1) : '0.0'}%)\n\n`;
+                    });
+                } else {
+                    reportContent += `RESULTS: No results available\n\n`;
+                }
+            }
+
+            // Download report
+            const blob = new Blob([reportContent], { type: 'text/plain;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `Election_System_Report_${new Date().toISOString().split('T')[0]}.txt`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            Utils.showToast('Comprehensive report generated successfully!', 'success');
+
+        } catch (error) {
+            console.error('Error generating report:', error);
+            Utils.showToast('Error generating report: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    }
+
+    // Export detailed results (placeholder for the modal button)
+    async exportDetailedResults(electionId) {
+        await this.exportResults(electionId);
     }
 }
 
