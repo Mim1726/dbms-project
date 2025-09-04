@@ -135,8 +135,8 @@ class Elections {
             } else {
                 html += `<div class="no-elections-card" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 0; background: #f8fafc; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin: 24px 0;">
                     <i class="fas fa-info-circle" style="font-size: 48px; color: #38bdf8; margin-bottom: 16px;"></i>
-                    <h3 style="color: #334155; margin-bottom: 8px;">No Ongoing Election</h3>
-                    <p style="color: #64748b; font-size: 1.1em; text-align: center; max-width: 400px;">There are currently no elections accepting votes. Please check back later or explore upcoming and past elections below.</p>
+                    <h3 style="color: #64748b; margin-bottom: 8px; font-weight: 300; font-size: 20px; letter-spacing: 0.5px;">No Ongoing Election</h3>
+                    <p style="color: #6b7280; font-size: 15px; font-weight: 300; text-align: center; max-width: 420px; line-height: 1.6; margin: 0;">There are currently no elections accepting votes. Please check back later or explore upcoming and past elections below.</p>
                 </div>`;
             }
             html += '</div>';
