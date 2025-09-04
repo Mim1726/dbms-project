@@ -1494,26 +1494,54 @@ class Auth {
             // Get results for each election
             let resultsHTML = '';
             for (const election of elections) {
+                // Get candidates for this election - check both status and contest participation
                 const { data: candidates, error: candidatesError } = await window.supabase
                     .from('candidate')
                     .select(`
                         candidate_id,
                         full_name,
                         party,
-                        symbol
+                        symbol,
+                        status
                     `)
-                    .eq('election_id', election.election_id)
-                    .eq('status', 'approved');
+                    .eq('election_id', election.election_id);
 
                 if (candidatesError) {
                     console.error('Error loading candidates:', candidatesError);
+                    resultsHTML += `
+                        <div class="election-result-card">
+                            <div class="election-header">
+                                <h3>${election.name}</h3>
+                            </div>
+                            <div class="error-message">
+                                Error loading candidates: ${candidatesError.message}
+                            </div>
+                        </div>
+                    `;
                     continue;
+                }
+
+                // Filter for approved candidates or candidates in contests
+                let approvedCandidates = [];
+                if (candidates && candidates.length > 0) {
+                    // Get candidates that are in contests (which means they're effectively approved)
+                    const { data: contests } = await window.supabase
+                        .from('contest')
+                        .select('candidate_id')
+                        .eq('election_id', election.election_id);
+                    
+                    const contestCandidateIds = new Set(contests?.map(c => c.candidate_id) || []);
+                    
+                    // Include candidates that are either explicitly approved or are in contests
+                    approvedCandidates = candidates.filter(candidate => 
+                        candidate.status === 'approved' || contestCandidateIds.has(candidate.candidate_id)
+                    );
                 }
 
                 // Get vote counts for each candidate through contest table
                 let candidateResults = [];
-                if (candidates && candidates.length > 0) {
-                    for (const candidate of candidates) {
+                if (approvedCandidates && approvedCandidates.length > 0) {
+                    for (const candidate of approvedCandidates) {
                         // Get contest for this candidate in this election
                         const { data: contests, error: contestError } = await window.supabase
                             .from('contest')

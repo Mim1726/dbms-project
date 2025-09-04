@@ -7,12 +7,20 @@ class App {
 
     // Initialize application
     init() {
+        this.hideAllModals();
         this.setupEventListeners();
         this.setupNavigation();
         this.checkAuthState();
         
         // Show home section by default
         this.showSection('home');
+    }
+
+    // Hide all modals on page load
+    hideAllModals() {
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.classList.remove('show');
+        });
     }
 
     // Setup event listeners
@@ -400,7 +408,7 @@ class App {
             // Escape key to close modals
             if (e.key === 'Escape') {
                 document.querySelectorAll('.modal').forEach(modal => {
-                    modal.style.display = 'none';
+                    modal.classList.remove('show');
                 });
             }
 
@@ -527,7 +535,7 @@ async function showUserProfile() {
         content.innerHTML = profileHTML;
         
         // Show modal
-        modal.style.display = 'block';
+        modal.classList.add('show');
         
     } catch (error) {
         console.error('Error loading user profile:', error);
@@ -635,7 +643,7 @@ function generateProfileHTML(profileData, userRole) {
 // Close user profile modal
 function closeUserProfile() {
     const modal = document.getElementById('userProfileModal');
-    modal.style.display = 'none';
+    modal.classList.remove('show');
 }
 
 // Edit user profile (placeholder)
@@ -684,7 +692,7 @@ async function editUserProfile() {
         
         // Close profile modal and show edit modal
         closeUserProfile();
-        editModal.style.display = 'block';
+        editModal.classList.add('show');
         
         // Setup form handler
         setupEditProfileForm(userData, userRole);
@@ -874,7 +882,7 @@ function setupEditProfileForm(userData, userRole) {
             
             // Refresh profile display if it's open
             const profileModal = document.getElementById('userProfileModal');
-            if (profileModal.style.display === 'block') {
+            if (profileModal.classList.contains('show')) {
                 showUserProfile();
             }
             
@@ -890,7 +898,7 @@ function setupEditProfileForm(userData, userRole) {
 // Close edit profile modal
 function closeEditProfile() {
     const modal = document.getElementById('editProfileModal');
-    modal.style.display = 'none';
+    modal.classList.remove('show');
     
     // Clear form
     const form = document.getElementById('editProfileForm');

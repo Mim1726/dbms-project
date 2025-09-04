@@ -191,12 +191,11 @@ Auth.prototype.loadVoterResultsSimple = async function(container) {
 
         // Get elections that are active
         const { data: elections, error: electionsError } = await supabase
-            .from('election')
-            .select('election_id, name, election_type, election_date, is_active, description')
-            .eq('is_active', 'Y')
+            .from('elections')
+            .select('election_id, name, election_type, election_date, is_active, description, status')
             .order('election_date', { ascending: false });
 
-        console.log('Elections query result:', { elections, electionsError });
+        console.log('Elections query result:', { elections: elections?.length || 0, electionsError });
 
         if (electionsError) {
             console.error('Elections error:', electionsError);
@@ -232,25 +231,55 @@ Auth.prototype.loadVoterResultsSimple = async function(container) {
         let resultsHTML = '';
         for (const election of elections) {
             try {
-                // Get candidates for this election
+                // Get candidates for this election - remove status filter for now to debug
                 const { data: candidates, error: candidatesError } = await supabase
-                    .from('candidate')
-                    .select('candidate_id, full_name, party, symbol')
-                    .eq('election_id', election.election_id)
-                    .eq('status', 'approved');
+                    .from('candidates')
+                    .select('candidate_id, full_name, party, symbol, status')
+                    .eq('election_id', election.election_id);
 
                 if (candidatesError) {
                     console.error('Error loading candidates:', candidatesError);
+                    resultsHTML += `
+                        <div class="election-result-card">
+                            <div class="election-header">
+                                <h3>${election.name}</h3>
+                            </div>
+                            <div class="error-message">
+                                Error loading candidates: ${candidatesError.message}
+                            </div>
+                        </div>
+                    `;
                     continue;
                 }
 
-                // Get vote counts for each candidate
-                let candidateResults = [];
+                console.log(`Candidates for election ${election.election_id}:`, candidates);
+
+                // Filter for approved candidates or candidates in contests
+                let approvedCandidates = [];
                 if (candidates && candidates.length > 0) {
-                    for (const candidate of candidates) {
+                    // First check which candidates are in contests (which means they're effectively approved)
+                    const { data: contests } = await supabase
+                        .from('contests')
+                        .select('candidate_id')
+                        .eq('election_id', election.election_id);
+                    
+                    const contestCandidateIds = new Set(contests?.map(c => c.candidate_id) || []);
+                    
+                    // Include candidates that are either explicitly approved or are in contests
+                    approvedCandidates = candidates.filter(candidate => 
+                        candidate.status === 'approved' || contestCandidateIds.has(candidate.candidate_id)
+                    );
+                }
+
+                console.log(`Approved/Contest candidates for election ${election.election_id}:`, approvedCandidates);
+
+                // Get vote counts for each approved candidate
+                let candidateResults = [];
+                if (approvedCandidates && approvedCandidates.length > 0) {
+                    for (const candidate of approvedCandidates) {
                         // Get contest for this candidate
                         const { data: contests } = await supabase
-                            .from('contest')
+                            .from('contests')
                             .select('contest_id')
                             .eq('election_id', election.election_id)
                             .eq('candidate_id', candidate.candidate_id);
@@ -259,7 +288,7 @@ Auth.prototype.loadVoterResultsSimple = async function(container) {
                         if (contests && contests.length > 0) {
                             // Get vote count for this contest
                             const { count } = await supabase
-                                .from('vote')
+                                .from('votes')
                                 .select('*', { count: 'exact' })
                                 .eq('contest_id', contests[0].contest_id);
                             

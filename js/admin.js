@@ -578,7 +578,352 @@ class Admin {
 
     // Edit election (placeholder)
     async editElection(electionId) {
-        Utils.showToast('Edit election functionality coming soon!', 'info');
+        try {
+            Utils.showLoading();
+
+            // Get election details
+            const { data: election, error: electionError } = await supabase
+                .from('election')
+                .select(`
+                    *,
+                    schedule (
+                        voting_start,
+                        voting_end,
+                        nomination_start,
+                        nomination_end
+                    )
+                `)
+                .eq('election_id', electionId)
+                .single();
+
+            if (electionError) throw electionError;
+
+            const schedule = election.schedule?.[0];
+
+            // Create edit modal
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay edit-election-modal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(1px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 2000;
+                padding: 20px;
+                box-sizing: border-box;
+                animation: fadeIn 0.2s ease-out;
+            `;
+
+            modal.innerHTML = `
+                <div class="edit-election-content" style="
+                    background: white;
+                    border-radius: 16px;
+                    max-width: 600px;
+                    width: 100%;
+                    max-height: 90vh;
+                    overflow-y: auto;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+                    position: relative;
+                    margin: auto;
+                    animation: modalSlideIn 0.3s ease-out;
+                ">
+                    <div class="modal-header" style="
+                        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+                        color: white;
+                        padding: 24px;
+                        border-radius: 16px 16px 0 0;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    ">
+                        <div>
+                            <h2 style="margin: 0; font-size: 24px; font-weight: 600;">
+                                <i class="fas fa-edit"></i> Edit Election
+                            </h2>
+                            <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 16px;">
+                                Update election schedule and settings
+                            </p>
+                        </div>
+                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()" style="
+                            background: none;
+                            border: none;
+                            color: white;
+                            font-size: 24px;
+                            cursor: pointer;
+                            padding: 8px;
+                            border-radius: 4px;
+                        ">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="modal-body" style="padding: 24px;">
+                        <form id="editElectionForm">
+                            <div class="form-group" style="margin-bottom: 20px;">
+                                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">
+                                    Election Name
+                                </label>
+                                <input type="text" name="name" value="${election.name}" style="
+                                    width: 100%;
+                                    padding: 12px;
+                                    border: 1px solid #d1d5db;
+                                    border-radius: 8px;
+                                    font-size: 16px;
+                                    box-sizing: border-box;
+                                " required>
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 20px;">
+                                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">
+                                    Election Type
+                                </label>
+                                <select name="election_type" style="
+                                    width: 100%;
+                                    padding: 12px;
+                                    border: 1px solid #d1d5db;
+                                    border-radius: 8px;
+                                    font-size: 16px;
+                                    box-sizing: border-box;
+                                " required>
+                                    <option value="General" ${election.election_type === 'General' ? 'selected' : ''}>General</option>
+                                    <option value="Local" ${election.election_type === 'Local' ? 'selected' : ''}>Local</option>
+                                    <option value="Special" ${election.election_type === 'Special' ? 'selected' : ''}>Special</option>
+                                    <option value="Primary" ${election.election_type === 'Primary' ? 'selected' : ''}>Primary</option>
+                                </select>
+                            </div>
+
+                            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                                <div class="form-group">
+                                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">
+                                        Voting Start Date
+                                    </label>
+                                    <input type="datetime-local" name="voting_start" 
+                                        value="${schedule?.voting_start ? new Date(schedule.voting_start).toISOString().slice(0, 16) : ''}" 
+                                        style="
+                                            width: 100%;
+                                            padding: 12px;
+                                            border: 1px solid #d1d5db;
+                                            border-radius: 8px;
+                                            font-size: 16px;
+                                            box-sizing: border-box;
+                                        " required>
+                                </div>
+                                <div class="form-group">
+                                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">
+                                        Voting End Date
+                                    </label>
+                                    <input type="datetime-local" name="voting_end" 
+                                        value="${schedule?.voting_end ? new Date(schedule.voting_end).toISOString().slice(0, 16) : ''}" 
+                                        style="
+                                            width: 100%;
+                                            padding: 12px;
+                                            border: 1px solid #d1d5db;
+                                            border-radius: 8px;
+                                            font-size: 16px;
+                                            box-sizing: border-box;
+                                        " required>
+                                </div>
+                            </div>
+
+                            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                                <div class="form-group">
+                                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">
+                                        Nomination Start Date
+                                    </label>
+                                    <input type="datetime-local" name="nomination_start" 
+                                        value="${schedule?.nomination_start ? new Date(schedule.nomination_start).toISOString().slice(0, 16) : ''}" 
+                                        style="
+                                            width: 100%;
+                                            padding: 12px;
+                                            border: 1px solid #d1d5db;
+                                            border-radius: 8px;
+                                            font-size: 16px;
+                                            box-sizing: border-box;
+                                        ">
+                                </div>
+                                <div class="form-group">
+                                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">
+                                        Nomination End Date
+                                    </label>
+                                    <input type="datetime-local" name="nomination_end" 
+                                        value="${schedule?.nomination_end ? new Date(schedule.nomination_end).toISOString().slice(0, 16) : ''}" 
+                                        style="
+                                            width: 100%;
+                                            padding: 12px;
+                                            border: 1px solid #d1d5db;
+                                            border-radius: 8px;
+                                            font-size: 16px;
+                                            box-sizing: border-box;
+                                        ">
+                                </div>
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 20px;">
+                                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">
+                                    Description
+                                </label>
+                                <textarea name="description" rows="3" style="
+                                    width: 100%;
+                                    padding: 12px;
+                                    border: 1px solid #d1d5db;
+                                    border-radius: 8px;
+                                    font-size: 16px;
+                                    box-sizing: border-box;
+                                    resize: vertical;
+                                ">${election.description || ''}</textarea>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <div class="modal-footer" style="
+                        padding: 20px 24px;
+                        border-top: 1px solid #e2e8f0;
+                        display: flex;
+                        justify-content: space-between;
+                        background: #f8fafc;
+                        border-radius: 0 0 16px 16px;
+                    ">
+                        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()" style="
+                            background: #6b7280;
+                            color: white;
+                            border: none;
+                            padding: 12px 24px;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-weight: 500;
+                        ">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button class="btn btn-primary" onclick="window.Admin.saveElectionChanges('${electionId}')" style="
+                            background: #3b82f6;
+                            color: white;
+                            border: none;
+                            padding: 12px 24px;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-weight: 500;
+                        ">
+                            <i class="fas fa-save"></i> Save Changes
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+
+            // Add backdrop click to close
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+
+        } catch (error) {
+            console.error('Error loading election for editing:', error);
+            Utils.showToast('Error loading election for editing: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    }
+
+    // Save election changes
+    async saveElectionChanges(electionId) {
+        try {
+            Utils.showLoading();
+
+            const form = document.getElementById('editElectionForm');
+            const formData = new FormData(form);
+            
+            // Validate form data
+            const name = formData.get('name').trim();
+            const electionType = formData.get('election_type');
+            const votingStart = formData.get('voting_start');
+            const votingEnd = formData.get('voting_end');
+
+            if (!name || !electionType || !votingStart || !votingEnd) {
+                Utils.showToast('Please fill in all required fields', 'error');
+                return;
+            }
+
+            // Validate dates
+            const startDate = new Date(votingStart);
+            const endDate = new Date(votingEnd);
+            const now = new Date();
+
+            if (startDate >= endDate) {
+                Utils.showToast('End date must be after start date', 'error');
+                return;
+            }
+
+            if (startDate <= now) {
+                Utils.showToast('Start date must be in the future', 'error');
+                return;
+            }
+
+            // Update election basic info
+            const { error: electionError } = await supabase
+                .from('election')
+                .update({
+                    name: name,
+                    election_type: electionType,
+                    description: formData.get('description') || null,
+                    election_date: votingStart
+                })
+                .eq('election_id', electionId);
+
+            if (electionError) throw electionError;
+
+            // Update or create schedule
+            const scheduleData = {
+                election_id: electionId,
+                voting_start: votingStart,
+                voting_end: votingEnd,
+                nomination_start: formData.get('nomination_start') || null,
+                nomination_end: formData.get('nomination_end') || null
+            };
+
+            // First try to update existing schedule
+            const { data: existingSchedule } = await supabase
+                .from('schedule')
+                .select('schedule_id')
+                .eq('election_id', electionId)
+                .single();
+
+            if (existingSchedule) {
+                // Update existing schedule
+                const { error: scheduleError } = await supabase
+                    .from('schedule')
+                    .update(scheduleData)
+                    .eq('election_id', electionId);
+
+                if (scheduleError) throw scheduleError;
+            } else {
+                // Create new schedule
+                const { error: scheduleError } = await supabase
+                    .from('schedule')
+                    .insert(scheduleData);
+
+                if (scheduleError) throw scheduleError;
+            }
+
+            Utils.showToast('Election updated successfully!', 'success');
+            
+            // Close modal and refresh results
+            document.querySelector('.edit-election-modal').remove();
+            await this.loadResultsTab(document.getElementById('resultsContent'));
+
+        } catch (error) {
+            console.error('Error saving election changes:', error);
+            Utils.showToast('Error saving election changes: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
     }
 
     // Publish Results - Calculate and publish election results
@@ -1628,7 +1973,7 @@ class Admin {
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background: rgba(0, 0, 0, 0.5);
+                background: transparent;
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -1644,8 +1989,9 @@ class Admin {
                     width: 100%;
                     max-height: 90vh;
                     overflow-y: auto;
-                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
                     position: relative;
+                    margin: 0 auto;
                 ">
                     <div class="modal-header" style="
                         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -2019,7 +2365,20 @@ class Admin {
             if (!modal) {
                 modal = document.createElement('div');
                 modal.id = 'candidateDetailsModal';
-                modal.className = 'modal';
+                modal.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: transparent;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 1000;
+                    padding: 20px;
+                    box-sizing: border-box;
+                `;
                 document.body.appendChild(modal);
             }
             modal.innerHTML = `
@@ -2036,7 +2395,7 @@ class Admin {
                     </div>
                 </div>
             `;
-            modal.style.display = 'block';
+            modal.style.display = 'flex';
         } catch (error) {
             Utils.showToast('Error loading candidate details: ' + error.message, 'error');
         } finally {
@@ -2284,49 +2643,71 @@ class Admin {
             if (electionsError) throw electionsError;
 
             const currentDate = new Date();
+            const upcomingElections = [];
             const ongoingElections = [];
             const completedElections = [];
 
             // Categorize elections based on proper status checking
             for (const election of elections) {
                 const schedule = election.schedule?.[0];
-                let isCompleted = false;
+                let status = 'upcoming'; // Default to upcoming
                 
                 if (schedule) {
                     // Use schedule dates if available
+                    const votingStart = schedule.voting_start ? new Date(schedule.voting_start) : null;
                     const votingEnd = schedule.voting_end ? new Date(schedule.voting_end) : null;
                     
-                    if (votingEnd && currentDate > votingEnd) {
-                        isCompleted = true;
-                    } else if (!votingEnd) {
-                        // Fallback to election_date + 1 day
+                    if (votingStart && votingEnd) {
+                        if (currentDate < votingStart) {
+                            status = 'upcoming';
+                        } else if (currentDate >= votingStart && currentDate <= votingEnd) {
+                            status = 'ongoing';
+                        } else {
+                            status = 'completed';
+                        }
+                    } else if (votingEnd) {
+                        // Only end date available
+                        if (currentDate > votingEnd) {
+                            status = 'completed';
+                        } else {
+                            status = 'upcoming';
+                        }
+                    } else {
+                        // No proper schedule dates, fallback to election_date
                         const electionDate = new Date(election.election_date);
-                        const electionEndDate = new Date(electionDate);
-                        electionEndDate.setDate(electionEndDate.getDate() + 1); // Add 1 day buffer
                         
-                        if (currentDate > electionEndDate) {
-                            isCompleted = true;
+                        if (currentDate < electionDate) {
+                            status = 'upcoming';
+                        } else if (currentDate.toDateString() === electionDate.toDateString()) {
+                            status = 'ongoing';
+                        } else {
+                            status = 'completed';
                         }
                     }
                 } else {
-                    // No schedule, use election_date + 1 day buffer
+                    // No schedule, use election_date
                     const electionDate = new Date(election.election_date);
-                    const electionEndDate = new Date(electionDate);
-                    electionEndDate.setDate(electionEndDate.getDate() + 1); // Add 1 day buffer
                     
-                    if (currentDate > electionEndDate) {
-                        isCompleted = true;
+                    if (currentDate < electionDate) {
+                        status = 'upcoming';
+                    } else if (currentDate.toDateString() === electionDate.toDateString()) {
+                        status = 'ongoing';
+                    } else {
+                        status = 'completed';
                     }
                 }
                 
-                if (isCompleted) {
-                    completedElections.push(election);
-                } else {
+                // Categorize elections by status
+                if (status === 'upcoming') {
+                    upcomingElections.push(election);
+                } else if (status === 'ongoing') {
                     ongoingElections.push(election);
+                } else {
+                    completedElections.push(election);
                 }
             }
 
-            const generateElectionResultsHTML = async (election, isCompleted = false) => {
+            const generateElectionResultsHTML = async (election, status = 'upcoming') => {
                 // Calculate results if they don't exist
                 await this.calculateResultsForElection(election.election_id);
                 
@@ -2404,6 +2785,21 @@ class Admin {
                 const totalVotes = results ? results.reduce((sum, result) => sum + (result.total_votes || 0), 0) : 0;
                 const schedule = election.schedule?.[0];
                 
+                // Determine status display properties
+                let statusText = 'Upcoming';
+                let statusClass = 'upcoming';
+                
+                if (status === 'upcoming') {
+                    statusText = 'Upcoming';
+                    statusClass = 'upcoming';
+                } else if (status === 'ongoing') {
+                    statusText = 'Ongoing';
+                    statusClass = 'ongoing';
+                } else {
+                    statusText = 'Completed';
+                    statusClass = 'completed';
+                }
+                
                 // Format comprehensive date and time information
                 let dateTimeInfo = '';
                 if (schedule) {
@@ -2428,11 +2824,11 @@ class Admin {
                             <div class="schedule-info">
                                 <div class="schedule-item">
                                     <i class="fas fa-play-circle"></i>
-                                    <span>Started: ${formatDateTime(votingStart)}</span>
+                                    <span>${status === 'upcoming' ? 'Starts' : 'Started'}: ${formatDateTime(votingStart)}</span>
                                 </div>
                                 <div class="schedule-item">
                                     <i class="fas fa-stop-circle"></i>
-                                    <span>${isCompleted ? 'Ended' : 'Ends'}: ${formatDateTime(votingEnd)}</span>
+                                    <span>${status === 'completed' ? 'Ended' : 'Ends'}: ${formatDateTime(votingEnd)}</span>
                                 </div>
                                 <div class="schedule-item">
                                     <i class="fas fa-clock"></i>
@@ -2471,7 +2867,7 @@ class Admin {
                                         <i class="fas fa-user-check"></i>
                                         Participants: ${voterIds.length}
                                     </span>
-                                    <span class="status-badge ${isCompleted ? 'completed' : 'ongoing'}">${isCompleted ? 'Completed' : 'Ongoing'}</span>
+                                    <span class="status-badge ${statusClass}">${statusText}</span>
                                     ${winnerDeclared ? '<span class="status-badge declared">Winner Declared</span>' : ''}
                                 </div>
                                 ${dateTimeInfo}
@@ -2480,7 +2876,7 @@ class Admin {
                                 <button class="btn btn-small btn-primary" onclick="window.Admin.viewDetailedResults('${election.election_id}')" title="View Detailed Voting Analysis">
                                     <i class="fas fa-chart-line"></i> Detailed Analysis
                                 </button>
-                                ${isCompleted ? `
+                                ${status === 'completed' ? `
                                     ${!winnerDeclared && results && results.length > 0 ? `
                                         <button class="btn btn-small btn-success" onclick="window.Admin.declareWinner('${election.election_id}')" title="Declare Winner">
                                             <i class="fas fa-trophy"></i> Declare Winner
@@ -2492,18 +2888,22 @@ class Admin {
                                     <button class="btn btn-small btn-info" onclick="window.Admin.exportResults('${election.election_id}')" title="Export Results to CSV">
                                         <i class="fas fa-download"></i> Export
                                     </button>
-                                ` : `
+                                ` : status === 'ongoing' ? `
                                     <button class="btn btn-small btn-primary" onclick="window.Admin.refreshResults('${election.election_id}')" title="Refresh Live Results">
                                         <i class="fas fa-sync"></i> Refresh Live
                                     </button>
                                     <button class="btn btn-small btn-warning" onclick="window.Admin.endElection('${election.election_id}')" title="End Election Early">
                                         <i class="fas fa-stop"></i> End Early
                                     </button>
+                                ` : `
+                                    <button class="btn btn-small btn-primary" onclick="window.Admin.editElection('${election.election_id}')" title="Edit Election Schedule">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </button>
                                 `}
                             </div>
                         </div>
                         
-                        ${results && results.length > 0 ? `
+                        ${results && results.length > 0 && status !== 'upcoming' ? `
                             <div class="candidates-results">
                                 ${results.map((result, index) => {
                                     const isWinner = winnerDeclared && result.candidate_id === winnerCandidateId;
@@ -2548,11 +2948,20 @@ class Admin {
                                     `;
                                 }).join('')}
                             </div>
+                        ` : status === 'upcoming' ? `
+                            <div class="upcoming-election-info">
+                                <div class="upcoming-message">
+                                    <i class="fas fa-calendar-check" style="font-size: 24px; color: #3b82f6; margin-bottom: 8px;"></i>
+                                    <h4 style="color: #1e293b; margin: 8px 0;">Election Scheduled</h4>
+                                    <p style="color: #64748b; margin: 4px 0;">This election is scheduled for the future.</p>
+                                    <p style="color: #64748b; margin: 4px 0; font-size: 14px;">Use 'Detailed Analysis' to view candidates and voter information.</p>
+                                </div>
+                            </div>
                         ` : `
                             <div class="no-results">
                                 <i class="fas fa-chart-bar" style="font-size: 32px; color: #a0aec0; margin-bottom: 12px;"></i>
                                 <p>No results available for this election yet.</p>
-                                ${isCompleted ? '<p>No votes were cast or no candidates are available.</p>' : '<p>Voting is ongoing - results will appear as votes are cast.</p>'}
+                                ${status === 'completed' ? '<p>No votes were cast or no candidates are available.</p>' : status === 'ongoing' ? '<p>Voting is ongoing - results will appear as votes are cast.</p>' : '<p>This election is scheduled for the future.</p>'}
                                 <button class="btn btn-small btn-primary" onclick="window.Admin.refreshResults('${election.election_id}')" style="margin-top: 12px;">
                                     <i class="fas fa-sync"></i> Check for Updates
                                 </button>
@@ -2562,16 +2971,22 @@ class Admin {
                 `;
             };
 
+            // Generate HTML for upcoming elections
+            let upcomingHTML = '';
+            for (const election of upcomingElections) {
+                upcomingHTML += await generateElectionResultsHTML(election, 'upcoming');
+            }
+
             // Generate HTML for ongoing elections
             let ongoingHTML = '';
             for (const election of ongoingElections) {
-                ongoingHTML += await generateElectionResultsHTML(election, false);
+                ongoingHTML += await generateElectionResultsHTML(election, 'ongoing');
             }
 
             // Generate HTML for completed elections
             let completedHTML = '';
             for (const election of completedElections) {
-                completedHTML += await generateElectionResultsHTML(election, true);
+                completedHTML += await generateElectionResultsHTML(election, 'completed');
             }
 
             container.innerHTML = `
@@ -2595,6 +3010,25 @@ class Admin {
                     </div>
                     
                     <div class="results-dashboard">
+                        ${upcomingElections.length > 0 ? `
+                            <div class="results-section upcoming">
+                                <div class="section-title-bar">
+                                    <h4 class="section-title">
+                                        <i class="fas fa-calendar-plus"></i> 
+                                        Upcoming Elections
+                                        <span class="count">(${upcomingElections.length})</span>
+                                    </h4>
+                                    <span class="upcoming-indicator">
+                                        <i class="fas fa-clock"></i>
+                                        Scheduled
+                                    </span>
+                                </div>
+                                <div class="results-grid">
+                                    ${upcomingHTML}
+                                </div>
+                            </div>
+                        ` : ''}
+                        
                         ${ongoingElections.length > 0 ? `
                             <div class="results-section ongoing">
                                 <div class="section-title-bar">
@@ -2629,11 +3063,11 @@ class Admin {
                             </div>
                         ` : ''}
                         
-                        ${ongoingElections.length === 0 && completedElections.length === 0 ? `
+                        ${upcomingElections.length === 0 && ongoingElections.length === 0 && completedElections.length === 0 ? `
                             <div class="no-elections-dashboard">
                                 <i class="fas fa-chart-bar" style="font-size: 64px; color: #a0aec0; margin-bottom: 24px;"></i>
                                 <h4>No Elections with Results</h4>
-                                <p>No ongoing or completed elections found. Results will appear here once elections are active or completed.</p>
+                                <p>No elections found. Results will appear here once elections are created and become active.</p>
                                 <div class="dashboard-actions">
                                     <button class="btn btn-primary" onclick="window.Admin.showTab('elections')">
                                         <i class="fas fa-plus"></i> Create Election
@@ -2688,6 +3122,18 @@ class Admin {
                 .single();
 
             if (electionError) throw electionError;
+
+            // Check if election is upcoming
+            const schedule = election.schedule?.[0];
+            const now = new Date();
+            const votingStart = schedule ? new Date(schedule.voting_start) : null;
+            const isUpcoming = votingStart && now < votingStart;
+
+            // If upcoming election, show candidates and voters info instead of voting analysis
+            if (isUpcoming) {
+                await this.viewUpcomingElectionDetails(election);
+                return;
+            }
 
             // Get detailed voting data
             const { data: votes, error: votesError } = await supabase
@@ -2786,9 +3232,9 @@ class Admin {
                 box-sizing: border-box;
             `;
 
-            const schedule = election.schedule?.[0];
-            const votingStart = schedule?.voting_start ? new Date(schedule.voting_start) : null;
-            const votingEnd = schedule?.voting_end ? new Date(schedule.voting_end) : null;
+            const scheduleData = election.schedule?.[0];
+            const votingStartTime = scheduleData?.voting_start ? new Date(scheduleData.voting_start) : null;
+            const votingEndTime = scheduleData?.voting_end ? new Date(scheduleData.voting_end) : null;
 
             modal.innerHTML = `
                 <div class="detailed-results-content" style="
@@ -2855,11 +3301,11 @@ class Admin {
                                     <div style="color: #64748b; font-size: 14px;">Avg Votes/Voter</div>
                                 </div>
                             </div>
-                            ${votingStart && votingEnd ? `
+                            ${votingStartTime && votingEndTime ? `
                                 <div style="margin-top: 16px; padding: 16px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
-                                    <strong>Voting Period:</strong> ${votingStart.toLocaleString()} to ${votingEnd.toLocaleString()}
+                                    <strong>Voting Period:</strong> ${votingStartTime.toLocaleString()} to ${votingEndTime.toLocaleString()}
                                     <br>
-                                    <strong>Duration:</strong> ${Math.round((votingEnd - votingStart) / (1000 * 60 * 60))} hours
+                                    <strong>Duration:</strong> ${Math.round((votingEndTime - votingStartTime) / (1000 * 60 * 60))} hours
                                 </div>
                             ` : ''}
                         </div>
@@ -3014,6 +3460,289 @@ class Admin {
         } catch (error) {
             console.error('Error loading detailed results:', error);
             Utils.showToast('Error loading detailed results: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    }
+
+    // View upcoming election details - shows candidates and voters instead of vote results
+    async viewUpcomingElectionDetails(election) {
+        try {
+            // Get all candidates for this election
+            const { data: candidates, error: candidatesError } = await supabase
+                .from('candidate')
+                .select('*')
+                .eq('election_id', election.election_id)
+                .order('full_name');
+
+            if (candidatesError) throw candidatesError;
+
+            // Get all registered voters
+            const { data: voters, error: votersError } = await supabase
+                .from('voter')
+                .select('voter_id, full_name, email, registration_date')
+                .order('full_name');
+
+            if (votersError) throw votersError;
+
+            const schedule = election.schedule?.[0];
+            const votingStart = schedule?.voting_start ? new Date(schedule.voting_start) : null;
+            const votingEnd = schedule?.voting_end ? new Date(schedule.voting_end) : null;
+
+            // Create detailed modal for upcoming election
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay upcoming-election-details-modal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(1px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 2000;
+                padding: 20px;
+                box-sizing: border-box;
+                animation: fadeIn 0.2s ease-out;
+            `;
+
+            modal.innerHTML = `
+                <div class="upcoming-election-content" style="
+                    background: white;
+                    border-radius: 16px;
+                    max-width: 1200px;
+                    width: 100%;
+                    max-height: 90vh;
+                    overflow-y: auto;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+                    position: relative;
+                    margin: auto;
+                    animation: modalSlideIn 0.3s ease-out;
+                ">
+                    <div class="modal-header" style="
+                        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+                        color: white;
+                        padding: 24px;
+                        border-radius: 16px 16px 0 0;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    ">
+                        <div>
+                            <h2 style="margin: 0; font-size: 24px; font-weight: 600;">
+                                <i class="fas fa-calendar-alt"></i> Upcoming Election Details
+                            </h2>
+                            <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 16px;">
+                                ${election.name} - Candidates & Voters Information
+                            </p>
+                        </div>
+                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()" style="
+                            background: none;
+                            border: none;
+                            color: white;
+                            font-size: 24px;
+                            cursor: pointer;
+                            padding: 8px;
+                            border-radius: 4px;
+                        ">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="modal-body" style="padding: 24px;">
+                        <!-- Election Schedule Information -->
+                        <div class="election-schedule" style="margin-bottom: 32px;">
+                            <h3 style="color: #334155; font-size: 20px; margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
+                                <i class="fas fa-clock"></i> Election Schedule
+                            </h3>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
+                                <div class="schedule-card" style="background: #f8fafc; padding: 16px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                                    <div style="font-size: 18px; font-weight: bold; color: #1e40af; margin-bottom: 4px;">
+                                        ${votingStart ? votingStart.toLocaleDateString() : 'Not scheduled'}
+                                    </div>
+                                    <div style="color: #64748b; font-size: 14px; margin-bottom: 4px;">Start Date</div>
+                                    <div style="color: #475569; font-size: 14px;">
+                                        ${votingStart ? votingStart.toLocaleTimeString() : ''}
+                                    </div>
+                                </div>
+                                <div class="schedule-card" style="background: #f8fafc; padding: 16px; border-radius: 8px; border-left: 4px solid #10b981;">
+                                    <div style="font-size: 18px; font-weight: bold; color: #059669; margin-bottom: 4px;">
+                                        ${votingEnd ? votingEnd.toLocaleDateString() : 'Not scheduled'}
+                                    </div>
+                                    <div style="color: #64748b; font-size: 14px; margin-bottom: 4px;">End Date</div>
+                                    <div style="color: #475569; font-size: 14px;">
+                                        ${votingEnd ? votingEnd.toLocaleTimeString() : ''}
+                                    </div>
+                                </div>
+                                <div class="schedule-card" style="background: #f8fafc; padding: 16px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                                    <div style="font-size: 18px; font-weight: bold; color: #d97706; margin-bottom: 4px;">
+                                        ${votingStart && votingEnd ? Math.round((votingEnd - votingStart) / (1000 * 60 * 60)) + ' hours' : 'TBD'}
+                                    </div>
+                                    <div style="color: #64748b; font-size: 14px;">Duration</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Candidates Section -->
+                        <div class="candidates-section" style="margin-bottom: 32px;">
+                            <h3 style="color: #334155; font-size: 20px; margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
+                                <i class="fas fa-users"></i> Candidates (${candidates?.length || 0})
+                            </h3>
+                            ${candidates && candidates.length > 0 ? `
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
+                                    ${candidates.map(candidate => `
+                                        <div class="candidate-card" style="
+                                            background: white;
+                                            border: 1px solid #e2e8f0;
+                                            border-radius: 12px;
+                                            padding: 20px;
+                                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                                            transition: all 0.3s ease;
+                                        " onmouseover="this.style.boxShadow='0 8px 25px rgba(0,0,0,0.15)'" onmouseout="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)'">
+                                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                                                <h4 style="margin: 0; color: #1e293b; font-size: 18px; font-weight: 600;">
+                                                    ${candidate.full_name}
+                                                </h4>
+                                                <button class="btn btn-small btn-outline" onclick="window.Admin.viewCandidateDetails('${candidate.candidate_id}')" 
+                                                    style="padding: 4px 8px; font-size: 12px;" title="View candidate details">
+                                                    <i class="fas fa-eye"></i> View Details
+                                                </button>
+                                            </div>
+                                            <div style="margin-bottom: 8px;">
+                                                <span style="background: #3b82f6; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500;">
+                                                    ${candidate.party || 'Independent'}
+                                                </span>
+                                                ${candidate.symbol ? `<span style="margin-left: 8px; font-size: 14px;">Symbol: ${candidate.symbol}</span>` : ''}
+                                            </div>
+                                            ${candidate.bio ? `
+                                                <p style="color: #64748b; font-size: 14px; margin: 8px 0 0 0; line-height: 1.4;">
+                                                    ${candidate.bio.length > 100 ? candidate.bio.substring(0, 100) + '...' : candidate.bio}
+                                                </p>
+                                            ` : ''}
+                                            <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center;">
+                                                <span style="color: #64748b; font-size: 12px;">
+                                                    ID: ${candidate.candidate_id}
+                                                </span>
+                                                <button class="btn btn-tiny btn-danger" onclick="window.Admin.removeCandidateFromElection('${candidate.candidate_id}', '${election.election_id}')"
+                                                    style="padding: 2px 6px; font-size: 10px;" title="Remove candidate">
+                                                    <i class="fas fa-trash"></i> Remove
+                                                </button>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : `
+                                <div style="text-align: center; padding: 40px 20px; background: #f8fafc; border-radius: 12px;">
+                                    <i class="fas fa-user-plus" style="font-size: 48px; color: #a0aec0; margin-bottom: 16px;"></i>
+                                    <h4 style="color: #374151; margin-bottom: 8px;">No Candidates Added</h4>
+                                    <p style="color: #64748b; margin-bottom: 16px;">Add candidates to this election to enable voting.</p>
+                                    <button class="btn btn-primary" onclick="window.Admin.addCandidateToElection('${election.election_id}')">
+                                        <i class="fas fa-plus"></i> Add Candidates
+                                    </button>
+                                </div>
+                            `}
+                        </div>
+
+                        <!-- Registered Voters Section -->
+                        <div class="voters-section">
+                            <h3 style="color: #334155; font-size: 20px; margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
+                                <i class="fas fa-vote-yea"></i> Registered Voters (${voters?.length || 0})
+                            </h3>
+                            ${voters && voters.length > 0 ? `
+                                <div class="voters-table-container" style="
+                                    background: white;
+                                    border: 1px solid #e2e8f0;
+                                    border-radius: 12px;
+                                    overflow: hidden;
+                                    max-height: 400px;
+                                    overflow-y: auto;
+                                ">
+                                    <table style="width: 100%; border-collapse: collapse;">
+                                        <thead style="background: #f8fafc; position: sticky; top: 0;">
+                                            <tr>
+                                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #374151;">#</th>
+                                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #374151;">Name</th>
+                                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #374151;">Email</th>
+                                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #374151;">Registered</th>
+                                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #374151;">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${voters.map((voter, index) => `
+                                                <tr style="border-bottom: 1px solid #f1f5f9;">
+                                                    <td style="padding: 12px; color: #64748b;">${index + 1}</td>
+                                                    <td style="padding: 12px; font-weight: 500; color: #1e293b;">
+                                                        ${voter.full_name}
+                                                    </td>
+                                                    <td style="padding: 12px; color: #64748b;">
+                                                        ${voter.email}
+                                                    </td>
+                                                    <td style="padding: 12px; color: #64748b;">
+                                                        ${voter.registration_date ? new Date(voter.registration_date).toLocaleDateString() : 'N/A'}
+                                                    </td>
+                                                    <td style="padding: 12px;">
+                                                        <button class="btn btn-tiny btn-outline" onclick="window.Admin.viewVoterDetails('${voter.voter_id}')"
+                                                            style="margin-right: 4px; padding: 2px 6px; font-size: 10px;" title="View voter details">
+                                                            <i class="fas fa-eye"></i> Details
+                                                        </button>
+                                                        <button class="btn btn-tiny btn-danger" onclick="window.Admin.removeVoter('${voter.voter_id}')"
+                                                            style="padding: 2px 6px; font-size: 10px;" title="Remove voter">
+                                                            <i class="fas fa-trash"></i> Remove
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ` : `
+                                <div style="text-align: center; padding: 40px 20px; background: #f8fafc; border-radius: 12px;">
+                                    <i class="fas fa-users" style="font-size: 48px; color: #a0aec0; margin-bottom: 16px;"></i>
+                                    <h4 style="color: #374151; margin-bottom: 8px;">No Registered Voters</h4>
+                                    <p style="color: #64748b;">Voters can register through the voter registration system.</p>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer" style="
+                        padding: 20px 24px;
+                        border-top: 1px solid #e2e8f0;
+                        display: flex;
+                        justify-content: center;
+                        background: #f8fafc;
+                        border-radius: 0 0 16px 16px;
+                    ">
+                        <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()" style="
+                            background: #6b7280;
+                            color: white;
+                            border: none;
+                            padding: 12px 24px;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-weight: 500;
+                        ">
+                            <i class="fas fa-times"></i> Close
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+
+            // Add backdrop click to close
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+
+        } catch (error) {
+            console.error('Error loading upcoming election details:', error);
+            Utils.showToast('Error loading upcoming election details: ' + error.message, 'error');
         } finally {
             Utils.hideLoading();
         }
@@ -3391,6 +4120,222 @@ class Admin {
     // Export detailed results (placeholder for the modal button)
     async exportDetailedResults(electionId) {
         await this.exportResults(electionId);
+    }
+
+    // Helper functions for upcoming election management
+
+    // View candidate details
+    async viewCandidateDetails(candidateId) {
+        try {
+            Utils.showLoading();
+
+            const { data: candidate, error } = await supabase
+                .from('candidate')
+                .select('*')
+                .eq('candidate_id', candidateId)
+                .single();
+
+            if (error) throw error;
+
+            // Create modal to show candidate details
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay candidate-details-modal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: transparent;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 2100;
+                padding: 20px;
+            `;
+
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 12px; max-width: 500px; width: 100%; padding: 24px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15); margin: auto;">
+                    <h3 style="margin: 0 0 20px 0; color: #1e293b;">Candidate Details</h3>
+                    <div style="margin-bottom: 16px;">
+                        <strong>Name:</strong> ${candidate.full_name}
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <strong>Party:</strong> ${candidate.party || 'Independent'}
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <strong>Symbol:</strong> ${candidate.symbol || 'N/A'}
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <strong>Bio:</strong> ${candidate.bio || 'No bio provided'}
+                    </div>
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button onclick="this.closest('.modal-overlay').remove()" style="
+                            background: #6b7280;
+                            color: white;
+                            border: none;
+                            padding: 10px 20px;
+                            border-radius: 6px;
+                            cursor: pointer;
+                        ">Close</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+
+        } catch (error) {
+            console.error('Error viewing candidate details:', error);
+            Utils.showToast('Error loading candidate details: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    }
+
+    // Remove candidate from election
+    async removeCandidateFromElection(candidateId, electionId) {
+        if (!confirm('Are you sure you want to remove this candidate from the election?')) {
+            return;
+        }
+
+        try {
+            Utils.showLoading();
+
+            // Delete candidate
+            const { error } = await supabase
+                .from('candidate')
+                .delete()
+                .eq('candidate_id', candidateId)
+                .eq('election_id', electionId);
+
+            if (error) throw error;
+
+            Utils.showToast('Candidate removed successfully', 'success');
+            
+            // Refresh the detailed view
+            document.querySelector('.upcoming-election-details-modal')?.remove();
+            this.viewDetailedResults(electionId);
+
+        } catch (error) {
+            console.error('Error removing candidate:', error);
+            Utils.showToast('Error removing candidate: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    }
+
+    // View voter details
+    async viewVoterDetails(voterId) {
+        try {
+            Utils.showLoading();
+
+            const { data: voter, error } = await supabase
+                .from('voter')
+                .select('*')
+                .eq('voter_id', voterId)
+                .single();
+
+            if (error) throw error;
+
+            // Create modal to show voter details
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay voter-details-modal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(1px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 2100;
+                padding: 20px;
+                animation: fadeIn 0.2s ease-out;
+            `;
+
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 12px; max-width: 500px; width: 100%; padding: 24px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); margin: auto; animation: modalSlideIn 0.3s ease-out;">
+                    <h3 style="margin: 0 0 20px 0; color: #1e293b;">Voter Details</h3>
+                    <div style="margin-bottom: 16px;">
+                        <strong>Name:</strong> ${voter.full_name}
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <strong>Email:</strong> ${voter.email}
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <strong>Registration Date:</strong> ${voter.registration_date ? new Date(voter.registration_date).toLocaleDateString() : 'N/A'}
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <strong>Voter ID:</strong> ${voter.voter_id}
+                    </div>
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button onclick="this.closest('.modal-overlay').remove()" style="
+                            background: #6b7280;
+                            color: white;
+                            border: none;
+                            padding: 10px 20px;
+                            border-radius: 6px;
+                            cursor: pointer;
+                        ">Close</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+
+        } catch (error) {
+            console.error('Error viewing voter details:', error);
+            Utils.showToast('Error loading voter details: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    }
+
+    // Remove voter
+    async removeVoter(voterId) {
+        if (!confirm('Are you sure you want to remove this voter? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            Utils.showLoading();
+
+            // Delete voter
+            const { error } = await supabase
+                .from('voter')
+                .delete()
+                .eq('voter_id', voterId);
+
+            if (error) throw error;
+
+            Utils.showToast('Voter removed successfully', 'success');
+            
+            // Refresh any open modals
+            const detailsModal = document.querySelector('.upcoming-election-details-modal');
+            if (detailsModal) {
+                detailsModal.remove();
+                // Re-open if we can determine the election ID
+                const electionId = detailsModal.querySelector('[onclick*="viewDetailedResults"]')?.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+                if (electionId) {
+                    this.viewDetailedResults(electionId);
+                }
+            }
+
+        } catch (error) {
+            console.error('Error removing voter:', error);
+            Utils.showToast('Error removing voter: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    }
+
+    // Add candidate to election (placeholder)
+    async addCandidateToElection(electionId) {
+        Utils.showToast('Add candidate functionality coming soon!', 'info');
+        // This would open a form to add new candidates
     }
 }
 
