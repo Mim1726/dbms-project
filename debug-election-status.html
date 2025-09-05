@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Election Status</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .election-debug {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .status-upcoming { background-color: #e3f2fd; }
+        .status-active { background-color: #e8f5e8; }
+        .status-ended { background-color: #ffebee; }
+    </style>
+</head>
+<body>
+    <h1>Election Status Debug</h1>
+    <p>Current Date: <span id="currentDate"></span></p>
+    <div id="results"></div>
+
+    <script>
+        // Sample election data based on the database
+        const sampleElections = [
+            {
+                election_id: 305,
+                name: "Women Leadership Poll",
+                election_date: "2025-11-10",
+                is_active: "Y",
+                schedule: [{
+                    voting_start: "2025-11-05T08:00:00",
+                    voting_end: "2025-11-10T18:00:00",
+                    nomination_start: "2025-08-15T00:00:00",
+                    nomination_end: "2025-08-25T23:59:59"
+                }]
+            },
+            {
+                election_id: 302,
+                name: "City Council Election", 
+                election_date: "2025-10-15",
+                is_active: "Y",
+                schedule: [{
+                    voting_start: "2025-10-10T08:00:00",
+                    voting_end: "2025-10-15T18:00:00",
+                    nomination_start: "2025-08-01T00:00:00",
+                    nomination_end: "2025-08-10T23:59:59"
+                }]
+            },
+            {
+                election_id: 304,
+                name: "Mayor Election",
+                election_date: "2025-09-05", 
+                is_active: "N",
+                schedule: [{
+                    voting_start: "2025-09-01T08:00:00",
+                    voting_end: "2025-09-05T18:00:00",
+                    nomination_start: "2025-08-01T00:00:00",
+                    nomination_end: "2025-08-05T23:59:59"
+                }]
+            }
+        ];
+
+        // Copy the exact getElectionStatus function from elections.js
+        function getElectionStatus(election) {
+            // Simulate current date as September 4, 2025
+            const now = new Date('2025-09-04T12:00:00');
+            
+            // Debug logging to see what data we're working with
+            console.log(`[DEBUG] Checking status for: ${election.name}`);
+            console.log(`[DEBUG] Current time: ${now.toISOString()}`);
+            console.log(`[DEBUG] Election date: ${election.election_date}`);
+            console.log(`[DEBUG] Has schedule: ${election.schedule && election.schedule.length > 0}`);
+            
+            // Check if election has a schedule first (most reliable)
+            if (election.schedule && election.schedule.length > 0) {
+                const schedule = election.schedule[0];
+                console.log(`[DEBUG] Schedule data:`, schedule);
+                
+                const votingStart = schedule.voting_start ? new Date(schedule.voting_start) : null;
+                const votingEnd = schedule.voting_end ? new Date(schedule.voting_end) : null;
+                
+                if (votingStart && votingEnd) {
+                    console.log(`[DEBUG] Voting period: ${votingStart.toISOString()} to ${votingEnd.toISOString()}`);
+                    
+                    // Use schedule for status determination
+                    if (now > votingEnd) {
+                        console.log(`[DEBUG] Status: Ended (past voting end)`);
+                        return 'Ended';
+                    } else if (now >= votingStart && now <= votingEnd) {
+                        console.log(`[DEBUG] Status: Active (within voting period)`);
+                        return 'Active';
+                    } else if (now < votingStart) {
+                        console.log(`[DEBUG] Status: Upcoming (before voting starts)`);
+                        return 'Upcoming';
+                    }
+                } else {
+                    console.log(`[DEBUG] Incomplete schedule data - voting_start: ${votingStart}, voting_end: ${votingEnd}`);
+                }
+            } else {
+                console.log(`[DEBUG] No schedule data found`);
+            }
+            
+            // Fallback to election_date comparison only if no schedule
+            const electionDate = new Date(election.election_date);
+            console.log(`[DEBUG] Using fallback logic with election_date: ${electionDate.toISOString()}`);
+            
+            // Always prefer future dates as upcoming when no schedule is available
+            if (electionDate >= now) {
+                console.log(`[DEBUG] Fallback Status: Upcoming (future election_date)`);
+                return 'Upcoming';
+            } else {
+                // Past election - check how far in the past
+                const daysDiff = (now - electionDate) / (1000 * 60 * 60 * 24);
+                console.log(`[DEBUG] Days past election: ${daysDiff}`);
+                
+                if (daysDiff > 1) {
+                    console.log(`[DEBUG] Fallback Status: Ended (>1 day past)`);
+                    return 'Ended';
+                } else {
+                    // Election was today or yesterday - check if still active
+                    const status = election.is_active === 'Y' ? 'Active' : 'Ended';
+                    console.log(`[DEBUG] Fallback Status: ${status} (recent election, is_active: ${election.is_active})`);
+                    return status;
+                }
+            }
+        }
+
+        // Test the elections
+        document.getElementById('currentDate').textContent = "September 4, 2025 (Simulated)";
+        
+        const resultsDiv = document.getElementById('results');
+        
+        sampleElections.forEach(election => {
+            const status = getElectionStatus(election);
+            
+            const div = document.createElement('div');
+            div.className = `election-debug status-${status.toLowerCase()}`;
+            div.innerHTML = `
+                <h3>${election.name}</h3>
+                <p><strong>Status:</strong> ${status}</p>
+                <p><strong>Election Date:</strong> ${election.election_date}</p>
+                <p><strong>Voting Period:</strong> ${election.schedule[0].voting_start} to ${election.schedule[0].voting_end}</p>
+                <p><strong>Is Active:</strong> ${election.is_active}</p>
+            `;
+            
+            resultsDiv.appendChild(div);
+        });
+    </script>
+</body>
+</html>

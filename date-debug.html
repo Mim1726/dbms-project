@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Date Debug</title>
+</head>
+<body>
+    <h1>Date Debug</h1>
+    <div id="output"></div>
+
+    <script>
+        const now = new Date();
+        const output = document.getElementById('output');
+        
+        output.innerHTML = `
+            <h3>Current Browser Date/Time:</h3>
+            <p><strong>Local:</strong> ${now.toLocaleString()}</p>
+            <p><strong>ISO:</strong> ${now.toISOString()}</p>
+            <p><strong>UTC:</strong> ${now.toUTCString()}</p>
+            <p><strong>Timezone Offset:</strong> ${now.getTimezoneOffset()} minutes</p>
+            
+            <h3>Test Election Dates:</h3>
+        `;
+        
+        const testDates = [
+            { name: 'Women Leadership Poll', voting_start: '2025-11-05T08:00:00', voting_end: '2025-11-10T18:00:00' },
+            { name: 'City Council Election', voting_start: '2025-10-10T08:00:00', voting_end: '2025-10-15T18:00:00' },
+            { name: 'Mayor Election', voting_start: '2025-09-01T08:00:00', voting_end: '2025-09-05T18:00:00' }
+        ];
+        
+        testDates.forEach(election => {
+            const votingStart = new Date(election.voting_start);
+            const votingEnd = new Date(election.voting_end);
+            
+            let status;
+            if (now > votingEnd) {
+                status = 'Ended';
+            } else if (now >= votingStart && now <= votingEnd) {
+                status = 'Active';
+            } else if (now < votingStart) {
+                status = 'Upcoming';
+            }
+            
+            output.innerHTML += `
+                <div style="border: 1px solid #ddd; padding: 10px; margin: 10px 0;">
+                    <h4>${election.name}</h4>
+                    <p><strong>Status:</strong> <span style="color: ${status === 'Ended' ? 'red' : status === 'Active' ? 'green' : 'blue'};">${status}</span></p>
+                    <p><strong>Voting Start:</strong> ${votingStart.toLocaleString()}</p>
+                    <p><strong>Voting End:</strong> ${votingEnd.toLocaleString()}</p>
+                    <p><strong>Now > End:</strong> ${now > votingEnd}</p>
+                    <p><strong>Now >= Start:</strong> ${now >= votingStart}</p>
+                    <p><strong>Now < Start:</strong> ${now < votingStart}</p>
+                </div>
+            `;
+        });
+    </script>
+</body>
+</html>

@@ -68,78 +68,39 @@
                     <i class="fas fa-users voting-icon"></i>
                 </div>
             </div>
-            <div class="container" style="margin-top: 2.5rem;">
-                <div class="about-content" style="display:flex; flex-direction:column; gap:1.5rem; align-items:center; margin-top:-2.2rem;">
-                    <style>
-                        .modern-feature-card {
-                            width: 340px;
-                            max-width: 95vw;
-                            background: #fff;
-                            border-radius: 18px;
-                            box-shadow: 0 4px 24px rgba(75,60,110,0.08);
-                            padding: 1.1rem 1.5rem;
-                            display: flex;
-                            align-items: center;
-                            gap: 1.2rem;
-                            transition: box-shadow 0.2s, transform 0.2s;
-                            margin: 0 auto;
-                        }
-                        .modern-feature-card:hover {
-                            box-shadow: 0 8px 32px rgba(124,95,230,0.13);
-                            transform: translateY(-2px) scale(1.03);
-                        }
-                        .modern-feature-icon {
-                            background: linear-gradient(135deg, #7c5fe6 60%, #a0aec0 100%);
-                            border-radius: 50%;
-                            width: 54px;
-                            height: 54px;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            color: #fff;
-                            font-size: 2rem;
-                            box-shadow: 0 2px 8px rgba(124,95,230,0.08);
-                        }
-                        .modern-feature-divider {
-                            width: 60px;
-                            height: 3px;
-                            background: linear-gradient(90deg, #7c5fe6 0%, #a0aec0 100%);
-                            border-radius: 2px;
-                            margin: 0.7rem auto 0.7rem auto;
-                        }
-                    </style>
+            <div class="container">
+                <div class="features-container">
                     <div class="modern-feature-card">
                         <div class="modern-feature-icon"><i class="fas fa-shield-alt"></i></div>
-                        <div>
-                            <h3 style="margin:0; font-size:1.2rem; font-weight:600; color:#7c5fe6;">Secure</h3>
-                            <p style="margin:0; font-size:1rem; color:#4b3c6e;">End-to-end encryption and secure authentication</p>
+                        <div class="modern-feature-content">
+                            <h3 class="modern-feature-title">Secure</h3>
+                            <p class="modern-feature-description">End-to-end encryption and secure authentication</p>
                         </div>
                     </div>
-                    <div class="modern-feature-divider"></div>
+                    
                     <div class="modern-feature-card">
                         <div class="modern-feature-icon"><i class="fas fa-eye"></i></div>
-                        <div>
-                            <h3 style="margin:0; font-size:1.2rem; font-weight:600; color:#7c5fe6;">Transparent</h3>
-                            <p style="margin:0; font-size:1rem; color:#4b3c6e;">Real-time results and audit trails</p>
+                        <div class="modern-feature-content">
+                            <h3 class="modern-feature-title">Transparent</h3>
+                            <p class="modern-feature-description">Real-time results and audit trails</p>
                         </div>
                     </div>
-                    <div class="modern-feature-divider"></div>
+                    
                     <div class="modern-feature-card">
                         <div class="modern-feature-icon"><i class="fas fa-mobile-alt"></i></div>
-                        <div>
-                            <h3 style="margin:0; font-size:1.2rem; font-weight:600; color:#7c5fe6;">Accessible</h3>
-                            <p style="margin:0; font-size:1rem; color:#4b3c6e;">Vote from anywhere, anytime</p>
+                        <div class="modern-feature-content">
+                            <h3 class="modern-feature-title">Accessible</h3>
+                            <p class="modern-feature-description">Vote from anywhere, anytime</p>
                         </div>
                     </div>
-                    <div class="modern-feature-divider"></div>
+                    
                     <div class="modern-feature-card">
                         <div class="modern-feature-icon"><i class="fas fa-check-circle"></i></div>
-                        <div>
-                            <h3 style="margin:0; font-size:1.2rem; font-weight:600; color:#7c5fe6;">Reliable</h3>
-                            <p style="margin:0; font-size:1rem; color:#4b3c6e;">99.9% uptime with cloud infrastructure</p>
+                        <div class="modern-feature-content">
+                            <h3 class="modern-feature-title">Reliable</h3>
+                            <p class="modern-feature-description">99.9% uptime with cloud infrastructure</p>
                         </div>
                     </div>
-                    <div style="height:2.5rem;"></div>
                 </div>
             </div>
         </section>
@@ -554,7 +515,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/config.js?v=1.5"></script>
     <script src="js/auth.js?v=1.5"></script>
-    <script src="js/elections.js?v=1.5"></script>
+    <script src="js/elections.js?v=1.9&test=hardcoded-date"></script>
     <script src="js/voting.js?v=1.5"></script>
     <script src="js/admin.js?v=1.5"></script>
     <script src="js/utils.js?v=1.5"></script>

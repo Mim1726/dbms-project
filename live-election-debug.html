@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Election Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .debug-section {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .election-data {
+            background-color: #e3f2fd;
+            border: 1px solid #2196F3;
+        }
+        .status-debug {
+            background-color: #fff3e0;
+            border: 1px solid #ff9800;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+</head>
+<body>
+    <h1>Live Election Debug - September 4, 2025</h1>
+    <p>This page will fetch the actual election data from the database and show why the status is incorrect.</p>
+    
+    <button onclick="debugElections()" style="padding: 10px 20px; font-size: 16px; margin-bottom: 20px;">Debug Elections</button>
+    <button onclick="clearResults()" style="padding: 10px 20px; font-size: 16px; margin-bottom: 20px;">Clear Results</button>
+    
+    <div id="results"></div>
+
+    <script>
+        // Initialize Supabase
+        const supabase = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        async function debugElections() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p>Loading election data...</p>';
+            
+            try {
+                // Fetch elections with schedules - same query as the main app
+                const { data: elections, error } = await supabase
+                    .from('election')
+                    .select(`
+                        *,
+                        schedule (
+                            voting_start,
+                            voting_end,
+                            nomination_start,
+                            nomination_end,
+                            result_declared
+                        )
+                    `)
+                    .order('election_date', { ascending: false });
+
+                if (error) {
+                    resultsDiv.innerHTML = `<div class="debug-section" style="background-color: #ffebee;"><h3>Database Error</h3><pre>${JSON.stringify(error, null, 2)}</pre></div>`;
+                    return;
+                }
+                
+                resultsDiv.innerHTML = `
+                    <div class="debug-section">
+                        <h3>Database Query Results</h3>
+                        <p><strong>Found ${elections.length} elections</strong></p>
+                    </div>
+                `;
+                
+                // Focus on the problematic elections
+                const targetElections = elections.filter(e => 
+                    e.name === 'Women Leadership Poll' || 
+                    e.name === 'City Council Election' || 
+                    e.name === 'Mayor Election'
+                );
+                
+                targetElections.forEach(election => {
+                    const status = getElectionStatus(election);
+                    
+                    const debugHtml = `
+                        <div class="debug-section election-data">
+                            <h3>${election.name}</h3>
+                            <p><strong>Current Status:</strong> <span style="color: ${status === 'Ended' ? 'red' : status === 'Active' ? 'green' : 'blue'}; font-weight: bold;">${status}</span></p>
+                            
+                            <h4>Raw Election Data:</h4>
+                            <pre>${JSON.stringify(election, null, 2)}</pre>
+                        </div>
+                        
+                        <div class="debug-section status-debug">
+                            <h3>Status Calculation Debug for ${election.name}</h3>
+                            <div id="debug-log-${election.election_id}"></div>
+                        </div>
+                    `;
+                    
+                    resultsDiv.innerHTML += debugHtml;
+                    
+                    // Run status calculation with detailed logging
+                    getElectionStatusWithLogging(election, `debug-log-${election.election_id}`);
+                });
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="debug-section" style="background-color: #ffebee;"><h3>JavaScript Error</h3><pre>${error.message}\n${error.stack}</pre></div>`;
+            }
+        }
+        
+        // Copy the EXACT function from elections.js with logging
+        function getElectionStatus(election) {
+            const now = new Date();
+            
+            // Check if election has a schedule first (most reliable)
+            if (election.schedule && election.schedule.length > 0) {
+                const schedule = election.schedule[0];
+                const votingStart = schedule.voting_start ? new Date(schedule.voting_start) : null;
+                const votingEnd = schedule.voting_end ? new Date(schedule.voting_end) : null;
+                
+                if (votingStart && votingEnd) {
+                    // Use schedule for status determination
+                    if (now > votingEnd) {
+                        return 'Ended';
+                    } else if (now >= votingStart && now <= votingEnd) {
+                        return 'Active';
+                    } else if (now < votingStart) {
+                        return 'Upcoming';
+                    }
+                }
+            }
+            
+            // Fallback to election_date comparison only if no schedule
+            const electionDate = new Date(election.election_date);
+            
+            // Always prefer future dates as upcoming when no schedule is available
+            if (electionDate >= now) {
+                return 'Upcoming';
+            } else {
+                // Past election - check how far in the past
+                const daysDiff = (now - electionDate) / (1000 * 60 * 60 * 24);
+                
+                if (daysDiff > 1) {
+                    return 'Ended';
+                } else {
+                    // Election was today or yesterday - check if still active
+                    return election.is_active === 'Y' ? 'Active' : 'Ended';
+                }
+            }
+        }
+        
+        // Detailed logging version
+        function getElectionStatusWithLogging(election, logElementId) {
+            const logElement = document.getElementById(logElementId);
+            let log = '';
+            
+            const now = new Date();
+            log += `<p><strong>Current time:</strong> ${now.toISOString()}</p>`;
+            log += `<p><strong>Election date:</strong> ${election.election_date}</p>`;
+            log += `<p><strong>Has schedule array:</strong> ${election.schedule && election.schedule.length > 0}</p>`;
+            
+            // Check if election has a schedule first (most reliable)
+            if (election.schedule && election.schedule.length > 0) {
+                const schedule = election.schedule[0];
+                log += `<p><strong>Schedule data exists:</strong> ${JSON.stringify(schedule)}</p>`;
+                
+                const votingStart = schedule.voting_start ? new Date(schedule.voting_start) : null;
+                const votingEnd = schedule.voting_end ? new Date(schedule.voting_end) : null;
+                
+                log += `<p><strong>Voting start:</strong> ${votingStart ? votingStart.toISOString() : 'null'}</p>`;
+                log += `<p><strong>Voting end:</strong> ${votingEnd ? votingEnd.toISOString() : 'null'}</p>`;
+                
+                if (votingStart && votingEnd) {
+                    log += `<p><strong>Using schedule-based logic...</strong></p>`;
+                    
+                    if (now > votingEnd) {
+                        log += `<p style="color: red;"><strong>Result: ENDED</strong> (now > votingEnd)</p>`;
+                        logElement.innerHTML = log;
+                        return 'Ended';
+                    } else if (now >= votingStart && now <= votingEnd) {
+                        log += `<p style="color: green;"><strong>Result: ACTIVE</strong> (votingStart <= now <= votingEnd)</p>`;
+                        logElement.innerHTML = log;
+                        return 'Active';
+                    } else if (now < votingStart) {
+                        log += `<p style="color: blue;"><strong>Result: UPCOMING</strong> (now < votingStart)</p>`;
+                        logElement.innerHTML = log;
+                        return 'Upcoming';
+                    }
+                } else {
+                    log += `<p style="color: orange;"><strong>Incomplete schedule data - falling back to election_date</strong></p>`;
+                }
+            } else {
+                log += `<p style="color: orange;"><strong>No schedule data - using fallback logic</strong></p>`;
+            }
+            
+            // Fallback to election_date comparison only if no schedule
+            const electionDate = new Date(election.election_date);
+            log += `<p><strong>Election date parsed:</strong> ${electionDate.toISOString()}</p>`;
+            log += `<p><strong>Fallback comparison:</strong> electionDate >= now? ${electionDate >= now}</p>`;
+            
+            // Always prefer future dates as upcoming when no schedule is available
+            if (electionDate >= now) {
+                log += `<p style="color: blue;"><strong>Fallback Result: UPCOMING</strong> (future election_date)</p>`;
+                logElement.innerHTML = log;
+                return 'Upcoming';
+            } else {
+                // Past election - check how far in the past
+                const daysDiff = (now - electionDate) / (1000 * 60 * 60 * 24);
+                log += `<p><strong>Days past election:</strong> ${daysDiff}</p>`;
+                
+                if (daysDiff > 1) {
+                    log += `<p style="color: red;"><strong>Fallback Result: ENDED</strong> (>1 day past)</p>`;
+                    logElement.innerHTML = log;
+                    return 'Ended';
+                } else {
+                    const status = election.is_active === 'Y' ? 'Active' : 'Ended';
+                    log += `<p style="color: ${status === 'Active' ? 'green' : 'red'};"><strong>Fallback Result: ${status.toUpperCase()}</strong> (recent election, is_active: ${election.is_active})</p>`;
+                    logElement.innerHTML = log;
+                    return status;
+                }
+            }
+        }
+    </script>
+</body>
+</html>

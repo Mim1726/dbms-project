@@ -594,7 +594,6 @@ class Auth {
                 <a href="#dashboard-home" class="nav-link active" onclick="showDashboardSection('home')">Dashboard</a>
                 <a href="#available-elections" class="nav-link" onclick="showDashboardSection('elections')">Elections</a>
                 <a href="#my-votes" class="nav-link" onclick="showDashboardSection('my-votes')">My Votes</a>
-                <a href="#election-results" class="nav-link" onclick="showDashboardSection('results')">Results</a>
             `;
         }
         
@@ -768,11 +767,6 @@ class Auth {
                             <i class="fas fa-history"></i>
                             <h3>My Voting History</h3>
                             <p>View your past voting activity</p>
-                        </div>
-                        <div class="action-card" onclick="showDashboardSection('results')">
-                            <i class="fas fa-chart-pie"></i>
-                            <h3>Election Results</h3>
-                            <p>View results of completed elections</p>
                         </div>
                     </div>
                 </div>

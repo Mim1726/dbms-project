@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real Date Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .warning { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>Real System Date Analysis</h1>
+    
+    <div id="dateInfo"></div>
+    <div id="analysis"></div>
+    
+    <script>
+        const realNow = new Date();
+        const expectedDate = new Date('2025-09-04T12:00:00');
+        
+        document.getElementById('dateInfo').innerHTML = `
+            <div class="warning">
+                <h3>System Date Information</h3>
+                <p><strong>Real System Date:</strong> ${realNow.toLocaleString()}</p>
+                <p><strong>Real System UTC:</strong> ${realNow.toISOString()}</p>
+                <p><strong>Expected Test Date:</strong> September 4, 2025</p>
+                <p><strong>Date Difference:</strong> ${Math.round((realNow - expectedDate) / (1000 * 60 * 60 * 24))} days</p>
+            </div>
+        `;
+        
+        // Test elections with real system date
+        const elections = [
+            {
+                name: "Women Leadership Poll",
+                election_date: "2025-11-10",
+                schedule: [{ voting_start: "2025-11-05T08:00:00", voting_end: "2025-11-10T18:00:00" }]
+            },
+            {
+                name: "City Council Election", 
+                election_date: "2025-10-15",
+                schedule: [{ voting_start: "2025-10-10T08:00:00", voting_end: "2025-10-15T18:00:00" }]
+            },
+            {
+                name: "Mayor Election",
+                election_date: "2025-09-05", 
+                schedule: [{ voting_start: "2025-09-01T08:00:00", voting_end: "2025-09-05T18:00:00" }]
+            }
+        ];
+        
+        function getStatus(election, currentDate) {
+            const now = currentDate;
+            
+            if (election.schedule && election.schedule.length > 0) {
+                const schedule = election.schedule[0];
+                const votingStart = new Date(schedule.voting_start);
+                const votingEnd = new Date(schedule.voting_end);
+                
+                if (now > votingEnd) return 'Ended';
+                else if (now >= votingStart && now <= votingEnd) return 'Active';
+                else if (now < votingStart) return 'Upcoming';
+            }
+            
+            const electionDate = new Date(election.election_date);
+            if (electionDate >= now) return 'Upcoming';
+            else return 'Ended';
+        }
+        
+        let table = `
+            <table>
+                <tr>
+                    <th>Election</th>
+                    <th>Voting Period</th>
+                    <th>Status with Real Date</th>
+                    <th>Status with Sep 4, 2025</th>
+                    <th>Problem?</th>
+                </tr>
+        `;
+        
+        elections.forEach(election => {
+            const statusReal = getStatus(election, realNow);
+            const statusExpected = getStatus(election, expectedDate);
+            const hasProblem = statusReal === 'Ended' && statusExpected !== 'Ended';
+            
+            const vs = new Date(election.schedule[0].voting_start);
+            const ve = new Date(election.schedule[0].voting_end);
+            
+            table += `
+                <tr>
+                    <td><strong>${election.name}</strong></td>
+                    <td>${vs.toLocaleDateString()} - ${ve.toLocaleDateString()}</td>
+                    <td style="color: ${statusReal === 'Ended' ? 'red' : statusReal === 'Active' ? 'green' : 'blue'};">
+                        ${statusReal}
+                    </td>
+                    <td style="color: ${statusExpected === 'Ended' ? 'red' : statusExpected === 'Active' ? 'green' : 'blue'};">
+                        ${statusExpected}
+                    </td>
+                    <td style="background-color: ${hasProblem ? '#ffebee' : '#e8f5e8'};">
+                        ${hasProblem ? 'YES - Should be ' + statusExpected : 'No'}
+                    </td>
+                </tr>
+            `;
+        });
+        
+        table += '</table>';
+        
+        const problemCount = elections.filter(e => {
+            const statusReal = getStatus(e, realNow);
+            const statusExpected = getStatus(e, expectedDate);
+            return statusReal === 'Ended' && statusExpected !== 'Ended';
+        }).length;
+        
+        let analysisClass = 'success';
+        let analysisText = 'No issues detected. All elections showing correct status.';
+        
+        if (problemCount > 0) {
+            analysisClass = 'error';
+            analysisText = `Found ${problemCount} election(s) showing incorrect "Ended" status. The issue is likely that the system is using the real current date (${realNow.getFullYear()}) instead of the expected test date (September 4, 2025).`;
+        }
+        
+        document.getElementById('analysis').innerHTML = `
+            <div class="${analysisClass}">
+                <h3>Analysis Results</h3>
+                <p>${analysisText}</p>
+            </div>
+            ${table}
+            <div class="warning">
+                <h3>Solution</h3>
+                <p>If the problem is confirmed above, the issue is that the real system date is being used instead of the simulated September 4, 2025 date. 
+                To fix this, either:</p>
+                <ol>
+                    <li><strong>Temporarily change your system date</strong> to September 4, 2025 for testing</li>
+                    <li><strong>Modify the JavaScript</strong> to use a hardcoded date for testing: <code>const now = new Date('2025-09-04T12:00:00');</code></li>
+                    <li><strong>Update the test data</strong> to use dates relative to the current year</li>
+                </ol>
+            </div>
+        `;
+    </script>
+</body>
+</html>
