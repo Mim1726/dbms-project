@@ -1785,14 +1785,8 @@ class Admin {
                                                         <button class="btn btn-small btn-outline" onclick="window.Admin.viewCandidate('${candidate.candidate_id}')">
                                                             <i class="fas fa-eye"></i> View Details
                                                         </button>
-                                                        <button class="btn btn-small btn-warning" onclick="window.Admin.moveCandidate('${candidate.candidate_id}')">
-                                                            <i class="fas fa-exchange-alt"></i> Move
-                                                        </button>
                                                         <button class="btn btn-small btn-secondary" onclick="window.Admin.moveToPending('${candidate.candidate_id}')" title="Move back to pending">
                                                             <i class="fas fa-undo"></i> Move to Pending
-                                                        </button>
-                                                        <button class="btn btn-small btn-danger" onclick="window.Admin.rejectCandidate('${candidate.candidate_id}')" title="Completely remove candidate">
-                                                            <i class="fas fa-trash"></i> Delete
                                                         </button>
                                                     </div>
                                                 </div>
