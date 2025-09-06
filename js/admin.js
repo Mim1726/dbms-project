@@ -4140,45 +4140,35 @@ class Admin {
 
             // Create modal to show candidate details
             const modal = document.createElement('div');
-            modal.className = 'modal-overlay candidate-details-modal';
-            modal.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: transparent;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                z-index: 2100;
-                padding: 20px;
-            `;
-
+            modal.className = 'modal-overlay';
+            
             modal.innerHTML = `
-                <div style="background: white; border-radius: 12px; max-width: 500px; width: 100%; padding: 24px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15); margin: auto;">
-                    <h3 style="margin: 0 0 20px 0; color: #1e293b;">Candidate Details</h3>
-                    <div style="margin-bottom: 16px;">
-                        <strong>Name:</strong> ${candidate.full_name}
+                <div class="candidate-details-modal">
+                    <div class="modal-header">
+                        <h2>Candidate Details</h2>
+                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()"></button>
                     </div>
-                    <div style="margin-bottom: 16px;">
-                        <strong>Party:</strong> ${candidate.party || 'Independent'}
-                    </div>
-                    <div style="margin-bottom: 16px;">
-                        <strong>Symbol:</strong> ${candidate.symbol || 'N/A'}
-                    </div>
-                    <div style="margin-bottom: 16px;">
-                        <strong>Bio:</strong> ${candidate.bio || 'No bio provided'}
-                    </div>
-                    <div style="text-align: center; margin-top: 20px;">
-                        <button onclick="this.closest('.modal-overlay').remove()" style="
-                            background: #6b7280;
-                            color: white;
-                            border: none;
-                            padding: 10px 20px;
-                            border-radius: 6px;
-                            cursor: pointer;
-                        ">Close</button>
+                    <div class="modal-body">
+                        <div class="candidate-details-grid">
+                            <div class="detail-section">
+                                <div class="detail-row">
+                                    <strong>Name:</strong>
+                                    <span class="detail-text">${candidate.full_name}</span>
+                                </div>
+                                <div class="detail-row">
+                                    <strong>Party:</strong>
+                                    <span class="detail-text">${candidate.party || 'Independent'}</span>
+                                </div>
+                                <div class="detail-row">
+                                    <strong>Symbol:</strong>
+                                    <span class="detail-text">${candidate.symbol || 'N/A'}</span>
+                                </div>
+                                <div class="detail-row">
+                                    <strong>Bio:</strong>
+                                    <span class="detail-text">${candidate.bio || 'No bio provided'}</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             `;
@@ -4240,47 +4230,35 @@ class Admin {
 
             // Create modal to show voter details
             const modal = document.createElement('div');
-            modal.className = 'modal-overlay voter-details-modal';
-            modal.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(255, 255, 255, 0.1);
-                backdrop-filter: blur(1px);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                z-index: 2100;
-                padding: 20px;
-                animation: fadeIn 0.2s ease-out;
-            `;
-
+            modal.className = 'modal-overlay';
+            
             modal.innerHTML = `
-                <div style="background: white; border-radius: 12px; max-width: 500px; width: 100%; padding: 24px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); margin: auto; animation: modalSlideIn 0.3s ease-out;">
-                    <h3 style="margin: 0 0 20px 0; color: #1e293b;">Voter Details</h3>
-                    <div style="margin-bottom: 16px;">
-                        <strong>Name:</strong> ${voter.full_name}
+                <div class="candidate-details-modal">
+                    <div class="modal-header">
+                        <h2>Voter Details</h2>
+                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()"></button>
                     </div>
-                    <div style="margin-bottom: 16px;">
-                        <strong>Email:</strong> ${voter.email}
-                    </div>
-                    <div style="margin-bottom: 16px;">
-                        <strong>Registration Date:</strong> ${voter.registration_date ? new Date(voter.registration_date).toLocaleDateString() : 'N/A'}
-                    </div>
-                    <div style="margin-bottom: 16px;">
-                        <strong>Voter ID:</strong> ${voter.voter_id}
-                    </div>
-                    <div style="text-align: center; margin-top: 20px;">
-                        <button onclick="this.closest('.modal-overlay').remove()" style="
-                            background: #6b7280;
-                            color: white;
-                            border: none;
-                            padding: 10px 20px;
-                            border-radius: 6px;
-                            cursor: pointer;
-                        ">Close</button>
+                    <div class="modal-body">
+                        <div class="candidate-details-grid">
+                            <div class="detail-section">
+                                <div class="detail-row">
+                                    <strong>Name:</strong>
+                                    <span class="detail-text">${voter.full_name}</span>
+                                </div>
+                                <div class="detail-row">
+                                    <strong>Email:</strong>
+                                    <span class="detail-text">${voter.email}</span>
+                                </div>
+                                <div class="detail-row">
+                                    <strong>Registration Date:</strong>
+                                    <span class="detail-text">${voter.registration_date ? new Date(voter.registration_date).toLocaleDateString() : 'N/A'}</span>
+                                </div>
+                                <div class="detail-row">
+                                    <strong>Voter ID:</strong>
+                                    <span class="detail-text">${voter.voter_id}</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             `;
