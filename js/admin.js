@@ -4156,6 +4156,18 @@ class Admin {
                                     <span class="detail-text">${candidate.full_name}</span>
                                 </div>
                                 <div class="detail-row">
+                                    <strong>Email:</strong>
+                                    <span class="detail-text">${candidate.email || 'Not provided'}</span>
+                                </div>
+                                <div class="detail-row">
+                                    <strong>Phone:</strong>
+                                    <span class="detail-text">${candidate.phone || 'Not provided'}</span>
+                                </div>
+                                <div class="detail-row">
+                                    <strong>Date of Birth:</strong>
+                                    <span class="detail-text">${candidate.dob ? new Date(candidate.dob).toLocaleDateString() : 'Not provided'}</span>
+                                </div>
+                                <div class="detail-row">
                                     <strong>Party:</strong>
                                     <span class="detail-text">${candidate.party || 'Independent'}</span>
                                 </div>
@@ -4248,6 +4260,14 @@ class Admin {
                                 <div class="detail-row">
                                     <strong>Email:</strong>
                                     <span class="detail-text">${voter.email}</span>
+                                </div>
+                                <div class="detail-row">
+                                    <strong>Phone:</strong>
+                                    <span class="detail-text">${voter.phone || 'Not provided'}</span>
+                                </div>
+                                <div class="detail-row">
+                                    <strong>Date of Birth:</strong>
+                                    <span class="detail-text">${voter.dob ? new Date(voter.dob).toLocaleDateString() : 'Not provided'}</span>
                                 </div>
                                 <div class="detail-row">
                                     <strong>Registration Date:</strong>
