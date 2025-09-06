@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mayor Election Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .debug-container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .debug-info {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+        .status-active { color: #10b981; font-weight: bold; }
+        .status-ended { color: #ef4444; font-weight: bold; }
+        .status-upcoming { color: #3b82f6; font-weight: bold; }
+        button {
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #4f46e5; }
+    </style>
+</head>
+<body>
+    <div class="debug-container">
+        <h1>🔍 Mayor Election Debug</h1>
+        <p><strong>Today's Date:</strong> <span id="currentDate"></span></p>
+        <button onclick="debugMayorElection()">🔍 Debug Mayor Election</button>
+        <button onclick="fixMayorElection()">🔧 Fix Mayor Election</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const SUPABASE_URL = 'https://uovfisgqnvjthbqmwfdk.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdmZpc2dxbnZqdGhicW13ZmRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUzMTI1NzQsImV4cCI6MjA3MDg4ODU3NH0.a9j65YDOfaLDmF7Hp7zjGmtPvec4qDl3rG5woNtQcE4';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        document.getElementById('currentDate').textContent = new Date().toString();
+
+        function addResult(content) {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.innerHTML = content;
+            results.appendChild(div);
+        }
+
+        // Copy the exact status logic from elections.js
+        function getElectionStatus(election) {
+            const now = new Date();
+            const electionDate = new Date(election.election_date);
+            
+            console.log(`📅 Checking status for ${election.name}:`, {
+                now: now.toISOString(),
+                electionDate: election.election_date,
+                hasSchedule: election.schedule && election.schedule.length > 0
+            });
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const electionDateOnly = new Date(election.election_date);
+            electionDateOnly.setHours(0, 0, 0, 0);
+            
+            if (electionDateOnly > today) {
+                console.log(`📅 ${election.name}: Upcoming (election date is future: ${election.election_date})`);
+                return 'Upcoming';
+            }
+            
+            if (electionDateOnly.getTime() === today.getTime()) {
+                console.log(`📅 ${election.name}: Election is today, checking active status`);
+                
+                if (election.schedule && election.schedule.length > 0) {
+                    const schedule = election.schedule[0];
+                    const votingEnd = schedule.voting_end ? new Date(schedule.voting_end) : null;
+                    
+                    if (votingEnd && now <= votingEnd) {
+                        console.log(`📅 ${election.name}: Active (within voting hours)`);
+                        return 'Active';
+                    } else if (votingEnd && now > votingEnd) {
+                        console.log(`📅 ${election.name}: Ended (past voting end time)`);
+                        return 'Ended';
+                    }
+                }
+                
+                const status = election.is_active === 'Y' ? 'Active' : 'Ended';
+                console.log(`📅 ${election.name}: ${status} (today's election, is_active: ${election.is_active})`);
+                return status;
+            }
+            
+            if (electionDateOnly < today) {
+                const daysPast = Math.floor((today - electionDateOnly) / (1000 * 60 * 60 * 24));
+                console.log(`📅 ${election.name}: ${daysPast} days past election date`);
+                
+                if (daysPast > 1) {
+                    console.log(`📅 ${election.name}: Ended (more than 1 day past)`);
+                    return 'Ended';
+                }
+                
+                const status = election.is_active === 'Y' ? 'Active' : 'Ended';
+                console.log(`📅 ${election.name}: ${status} (yesterday's election, is_active: ${election.is_active})`);
+                return status;
+            }
+            
+            console.log(`📅 ${election.name}: Defaulting to Ended`);
+            return 'Ended';
+        }
+
+        async function debugMayorElection() {
+            addResult('<div style="color: #6b7280;">🔄 Loading Mayor Election data...</div>');
+            
+            try {
+                // Find Mayor Election
+                const { data: elections, error } = await supabase
+                    .from('election')
+                    .select(`
+                        *,
+                        schedule (
+                            voting_start,
+                            voting_end,
+                            nomination_start,
+                            nomination_end,
+                            result_declared
+                        )
+                    `)
+                    .ilike('name', '%mayor%');
+
+                if (error) throw error;
+
+                if (!elections || elections.length === 0) {
+                    addResult('<div style="color: #ef4444;">❌ No Mayor Election found in database</div>');
+                    return;
+                }
+
+                const mayorElection = elections[0];
+                const status = getElectionStatus(mayorElection);
+                const now = new Date();
+                
+                addResult(`
+                    <div style="border: 2px solid ${status === 'Active' ? '#10b981' : '#ef4444'}; padding: 20px; margin: 20px 0; border-radius: 8px;">
+                        <h3>🏛️ ${mayorElection.name} 
+                            <span class="status-${status.toLowerCase()}">[${status}]</span>
+                        </h3>
+                        
+                        <div class="debug-info">
+                            <strong>🗳️ Election Details:</strong><br>
+                            • Election ID: ${mayorElection.election_id}<br>
+                            • Election Date: ${mayorElection.election_date}<br>
+                            • Is Active Flag: ${mayorElection.is_active}<br>
+                            • Election Type: ${mayorElection.election_type || 'Not specified'}<br>
+                            • Description: ${mayorElection.description || 'No description'}
+                        </div>
+                        
+                        <div class="debug-info">
+                            <strong>📅 Date Analysis:</strong><br>
+                            • Current Time: ${now.toLocaleString()}<br>
+                            • Election Date: ${new Date(mayorElection.election_date).toLocaleDateString()}<br>
+                            • Is Today?: ${new Date(mayorElection.election_date).toDateString() === now.toDateString() ? 'YES' : 'NO'}<br>
+                            • Days Difference: ${Math.round((new Date(mayorElection.election_date) - now) / (1000 * 60 * 60 * 24))}
+                        </div>
+                        
+                        ${mayorElection.schedule && mayorElection.schedule.length > 0 ? `
+                            <div class="debug-info">
+                                <strong>⏰ Schedule Details:</strong><br>
+                                • Voting Start: ${mayorElection.schedule[0].voting_start || 'Not set'}<br>
+                                • Voting End: ${mayorElection.schedule[0].voting_end || 'Not set'}<br>
+                                • Nomination Start: ${mayorElection.schedule[0].nomination_start || 'Not set'}<br>
+                                • Nomination End: ${mayorElection.schedule[0].nomination_end || 'Not set'}
+                            </div>
+                        ` : '<div class="debug-info"><strong>⏰ Schedule:</strong> No schedule data found</div>'}
+                        
+                        <div class="debug-info" style="background: ${status === 'Active' ? '#f0fdf4' : '#fef2f2'};">
+                            <strong>🔍 Status Logic:</strong><br>
+                            ${status === 'Active' ? 
+                                '✅ Election is TODAY and marked as Active' : 
+                                '❌ Election should be Active but is showing as ' + status
+                            }<br>
+                            <strong>Expected:</strong> Active (since election date is today)<br>
+                            <strong>Actual:</strong> ${status}
+                        </div>
+                    </div>
+                `);
+
+            } catch (err) {
+                addResult(`<div style="color: #ef4444;">❌ Error: ${err.message}</div>`);
+                console.error('Full error:', err);
+            }
+        }
+
+        async function fixMayorElection() {
+            addResult('<div style="color: #6b7280;">🔧 Attempting to fix Mayor Election...</div>');
+            
+            try {
+                // Update Mayor Election to be active
+                const { data, error } = await supabase
+                    .from('election')
+                    .update({ is_active: 'Y' })
+                    .ilike('name', '%mayor%')
+                    .select();
+
+                if (error) throw error;
+
+                addResult(`<div style="color: #10b981;">✅ Updated Mayor Election is_active flag to 'Y'</div>`);
+                
+                // Re-debug to confirm
+                setTimeout(debugMayorElection, 1000);
+
+            } catch (err) {
+                addResult(`<div style="color: #ef4444;">❌ Fix Error: ${err.message}</div>`);
+            }
+        }
+
+        // Auto-debug on load
+        window.addEventListener('load', () => {
+            setTimeout(debugMayorElection, 1000);
+        });
+    </script>
+</body>
+</html>

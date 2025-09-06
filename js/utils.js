@@ -36,6 +36,37 @@ class Utils {
         });
     }
 
+    // Format date and time properly handling timezone
+    static formatDateTime(dateString) {
+        if (!dateString) return 'Not set';
+        
+        // If the dateString doesn't include timezone info, treat it as local time
+        const date = new Date(dateString);
+        
+        // Check if this is likely a UTC string that should be displayed as local
+        if (dateString.includes('T') && !dateString.includes('+') && !dateString.includes('Z')) {
+            // This is an ISO string without timezone info - display as-is
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+        } else {
+            // This includes timezone info - convert to local time
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+    }
+
     // Format date for input fields
     static formatDateForInput(dateString) {
         const date = new Date(dateString);

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DateTime Debug Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .debug-container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .datetime-test {
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+        .info { background: #e8f4fd; border-left: 4px solid #0ea5e9; }
+        .warning { background: #fef3cd; border-left: 4px solid #f59e0b; }
+        .success { background: #f0fdf4; border-left: 4px solid #10b981; }
+        .error { background: #fef2f2; border-left: 4px solid #ef4444; }
+        button {
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #4f46e5; }
+        .form-group {
+            margin: 15px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 200px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .code {
+            font-family: 'Courier New', monospace;
+            background: #f1f5f9;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="debug-container">
+        <h1>🕐 DateTime Debug Tool</h1>
+        <p>This tool helps debug the timezone issue with election creation times.</p>
+        
+        <div class="datetime-test info">
+            <h3>🌍 Timezone Information</h3>
+            <div class="code" id="timezoneInfo"></div>
+        </div>
+
+        <div class="datetime-test">
+            <h3>🧪 Test DateTime Conversion</h3>
+            <div class="form-group">
+                <label for="testDate">Test Date:</label>
+                <input type="date" id="testDate" value="2025-09-05">
+            </div>
+            <div class="form-group">
+                <label for="testTime">Test Time:</label>
+                <input type="time" id="testTime" value="14:30">
+            </div>
+            <button onclick="testDateTime()">🔍 Test Conversion</button>
+            <div id="testResults"></div>
+        </div>
+
+        <div class="datetime-test">
+            <h3>📊 Check Election Schedule Data</h3>
+            <button onclick="checkElectionSchedules()">🔄 Check Database</button>
+            <div id="scheduleResults"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const SUPABASE_URL = 'https://uovfisgqnvjthbqmwfdk.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvdmZpc2dxbnZqdGhicW13ZmRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUzMTI1NzQsImV4cCI6MjA3MDg4ODU3NH0.a9j65YDOfaLDmF7Hp7zjGmtPvec4qDl3rG5woNtQcE4';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        function showTimezoneInfo() {
+            const now = new Date();
+            const timezoneInfo = document.getElementById('timezoneInfo');
+            
+            timezoneInfo.innerHTML = `
+                <strong>Current Local Time:</strong> ${now.toString()}<br>
+                <strong>UTC Time:</strong> ${now.toUTCString()}<br>
+                <strong>ISO String:</strong> ${now.toISOString()}<br>
+                <strong>Timezone:</strong> ${Intl.DateTimeFormat().resolvedOptions().timeZone}<br>
+                <strong>Timezone Offset:</strong> ${now.getTimezoneOffset()} minutes (${now.getTimezoneOffset() / 60} hours)
+            `;
+        }
+
+        function testDateTime() {
+            const date = document.getElementById('testDate').value;
+            const time = document.getElementById('testTime').value;
+            
+            if (!date || !time) {
+                alert('Please enter both date and time');
+                return;
+            }
+
+            const results = document.getElementById('testResults');
+            
+            // Different ways to create the datetime
+            const localString = `${date}T${time}`;
+            const localDate = new Date(localString);
+            const utcString = localDate.toISOString();
+            
+            // How it would be stored (old way)
+            const oldWayStored = utcString;
+            
+            // How it would be stored (new way)
+            const newWayStored = `${date}T${time}:00`;
+            
+            results.innerHTML = `
+                <div class="datetime-test warning">
+                    <h4>Input Values</h4>
+                    <div class="code">
+                        Date: ${date}<br>
+                        Time: ${time}<br>
+                        Combined: ${localString}
+                    </div>
+                </div>
+                
+                <div class="datetime-test error">
+                    <h4>❌ OLD WAY (causing 6 AM issue)</h4>
+                    <div class="code">
+                        JavaScript Date Object: ${localDate.toString()}<br>
+                        Stored as (toISOString): ${oldWayStored}<br>
+                        When displayed: ${new Date(oldWayStored).toLocaleString()}<br>
+                        <strong>Problem:</strong> ${time} becomes ${new Date(oldWayStored).toLocaleTimeString()}
+                    </div>
+                </div>
+                
+                <div class="datetime-test success">
+                    <h4>✅ NEW WAY (preserves local time)</h4>
+                    <div class="code">
+                        Stored as: ${newWayStored}<br>
+                        When displayed: ${new Date(newWayStored).toLocaleString()}<br>
+                        <strong>Preserved:</strong> ${time} stays as ${new Date(newWayStored).toLocaleTimeString()}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function checkElectionSchedules() {
+            const results = document.getElementById('scheduleResults');
+            results.innerHTML = '<div class="code">🔄 Loading election schedules...</div>';
+            
+            try {
+                const { data: elections, error } = await supabase
+                    .from('election')
+                    .select(`
+                        *,
+                        schedule (
+                            voting_start,
+                            voting_end
+                        )
+                    `)
+                    .order('election_date', { ascending: false });
+
+                if (error) throw error;
+
+                let html = '<div class="datetime-test info"><h4>📋 Current Election Schedules</h4>';
+                
+                elections.forEach(election => {
+                    if (election.schedule && election.schedule.length > 0) {
+                        const schedule = election.schedule[0];
+                        const startDate = new Date(schedule.voting_start);
+                        const endDate = new Date(schedule.voting_end);
+                        
+                        html += `
+                            <div class="code" style="margin: 10px 0; padding: 15px; border: 1px solid #ddd;">
+                                <strong>${election.name}</strong><br>
+                                Raw voting_start: ${schedule.voting_start}<br>
+                                Raw voting_end: ${schedule.voting_end}<br>
+                                Displayed start: ${startDate.toLocaleString()}<br>
+                                Displayed end: ${endDate.toLocaleString()}<br>
+                                <span style="color: ${schedule.voting_start.includes('T') && schedule.voting_start.length <= 19 ? 'green' : 'red'}">
+                                    ${schedule.voting_start.includes('T') && schedule.voting_start.length <= 19 ? '✅ Fixed format' : '❌ UTC format (needs fix)'}
+                                </span>
+                            </div>
+                        `;
+                    } else {
+                        html += `
+                            <div class="code" style="margin: 10px 0; padding: 15px; border: 1px solid #ddd;">
+                                <strong>${election.name}</strong><br>
+                                <span style="color: orange;">⚠️ No schedule data</span>
+                            </div>
+                        `;
+                    }
+                });
+                
+                html += '</div>';
+                results.innerHTML = html;
+
+            } catch (err) {
+                results.innerHTML = `<div class="datetime-test error">❌ Error: ${err.message}</div>`;
+            }
+        }
+
+        // Initialize
+        showTimezoneInfo();
+        
+        // Set current date and time as default
+        const now = new Date();
+        document.getElementById('testDate').value = now.toISOString().split('T')[0];
+        document.getElementById('testTime').value = now.toTimeString().slice(0, 5);
+    </script>
+</body>
+</html>

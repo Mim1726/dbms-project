@@ -452,13 +452,14 @@ class Admin {
                 return;
             }
 
-            // Create schedule entry
+            // Create schedule entry with proper timezone handling
+            // Store the datetime strings directly to preserve the local timezone
             const { error: scheduleError } = await supabase
                 .from('schedule')
                 .insert([{
                     election_id: data.election_id,
-                    voting_start: startDateTime.toISOString(),
-                    voting_end: endDateTime.toISOString()
+                    voting_start: `${electionData.start_date}T${electionData.start_time}:00`,
+                    voting_end: `${electionData.end_date}T${electionData.end_time}:00`
                 }]);
 
             if (scheduleError) {

@@ -388,13 +388,12 @@ class Auth {
         // Restore original navigation links if they don't exist
         const existingLinks = navMenu.querySelectorAll('.nav-link');
         if (existingLinks.length === 0) {
-            // Recreate original navigation
+            // Recreate original navigation (without Results link for non-authenticated users)
             const originalNav = document.createElement('div');
             originalNav.innerHTML = `
                 <a href="#home" class="nav-link active">Home</a>
                 <a href="#about" class="nav-link">About</a>
                 <a href="#elections" class="nav-link">Elections</a>
-                <a href="#results" class="nav-link">Results</a>
             `;
             
             // Insert before auth buttons
@@ -588,12 +587,14 @@ class Auth {
         if (userType === 'admin') {
             dashboardNav.innerHTML = `
                 <a href="#dashboard-home" class="nav-link active" onclick="showDashboardSection('home')">Dashboard</a>
+                <a href="#results" class="nav-link" onclick="showDashboardSection('results')">Results</a>
             `;
         } else {
             dashboardNav.innerHTML = `
                 <a href="#dashboard-home" class="nav-link active" onclick="showDashboardSection('home')">Dashboard</a>
                 <a href="#available-elections" class="nav-link" onclick="showDashboardSection('elections')">Elections</a>
                 <a href="#my-votes" class="nav-link" onclick="showDashboardSection('my-votes')">My Votes</a>
+                <a href="#results" class="nav-link" onclick="showDashboardSection('results')">Results</a>
             `;
         }
         
@@ -729,8 +730,8 @@ class Auth {
                     <div class="stat-card">
                         <div class="stat-icon"><i class="fas fa-vote-yea"></i></div>
                         <div class="stat-info">
-                            <h3 id="availableElections">-</h3>
-                            <p>Available Elections</p>
+                            <h3 id="ongoingElections">-</h3>
+                            <p>Ongoing Elections</p>
                         </div>
                     </div>
                     <div class="stat-card">
@@ -744,7 +745,7 @@ class Auth {
                         <div class="stat-icon"><i class="fas fa-clock"></i></div>
                         <div class="stat-info">
                             <h3 id="upcomingElections">-</h3>
-                            <p>Upcoming Elections</p>
+                            <p style="white-space:nowrap">Upcoming Elections</p>
                         </div>
                     </div>
                     <div class="stat-card">
@@ -891,12 +892,34 @@ class Auth {
 
             const now = new Date();
             const allElections = allElectionsRes.data || [];
-            // Available elections should show ongoing elections (active and happening now/soon)
-            const ongoingCount = allElections.filter(e => e.is_active === 'Y' && new Date(e.election_date) <= now).length;
-            const upcomingCount = allElections.filter(e => new Date(e.election_date) > now).length;
-            const completedCount = allElections.filter(e => new Date(e.election_date) <= now).length;
+            // Ongoing elections: is_active === 'Y' and today is within voting period
+            const ongoingCount = allElections.filter(e => {
+                if (e.is_active !== 'Y') return false;
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                const electionDate = new Date(e.election_date);
+                electionDate.setHours(0,0,0,0);
+                // Ongoing if today is the election date
+                return electionDate.getTime() === today.getTime();
+            }).length;
 
-            document.getElementById('availableElections').textContent = ongoingCount;
+            const upcomingCount = allElections.filter(e => {
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                const electionDate = new Date(e.election_date);
+                electionDate.setHours(0,0,0,0);
+                return electionDate > today;
+            }).length;
+
+            const completedCount = allElections.filter(e => {
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                const electionDate = new Date(e.election_date);
+                electionDate.setHours(0,0,0,0);
+                return electionDate < today;
+            }).length;
+
+            document.getElementById('ongoingElections').textContent = ongoingCount;
             document.getElementById('myVotes').textContent = votesRes.data?.length || 0;
             document.getElementById('upcomingElections').textContent = upcomingCount;
             document.getElementById('completedElections').textContent = completedCount;
@@ -2171,5 +2194,120 @@ document.addEventListener('DOMContentLoaded', () => {
     window.Auth.init();
 });
 
-// Export Auth class
+// Global function for dashboard section navigation
+function showDashboardSection(sectionName) {
+    console.log('showDashboardSection called with:', sectionName);
+    
+    // Update navigation active states
+    const dashboardNav = document.getElementById('dashboardNav');
+    if (dashboardNav) {
+        const navLinks = dashboardNav.querySelectorAll('.nav-link');
+        navLinks.forEach(link => link.classList.remove('active'));
+        
+        // Find and activate the appropriate link
+        if (sectionName === 'home') {
+            const homeLink = dashboardNav.querySelector('a[href="#dashboard-home"]');
+            if (homeLink) homeLink.classList.add('active');
+        } else if (sectionName === 'elections') {
+            const electionsLink = dashboardNav.querySelector('a[href="#available-elections"]');
+            if (electionsLink) electionsLink.classList.add('active');
+        } else if (sectionName === 'my-votes') {
+            const votesLink = dashboardNav.querySelector('a[href="#my-votes"]');
+            if (votesLink) votesLink.classList.add('active');
+        } else if (sectionName === 'results') {
+            const resultsLink = dashboardNav.querySelector('a[href="#results"]');
+            if (resultsLink) resultsLink.classList.add('active');
+        }
+    }
+    
+    // Hide all main sections
+    document.querySelectorAll('#mainContent .section').forEach(section => {
+        section.style.display = 'none';
+    });
+    
+    // Get or create dashboard home section
+    let dashboardHomeSection = document.getElementById('dashboard-home-section');
+    if (!dashboardHomeSection) {
+        dashboardHomeSection = document.createElement('section');
+        dashboardHomeSection.id = 'dashboard-home-section';
+        dashboardHomeSection.className = 'section active';
+        document.getElementById('mainContent').appendChild(dashboardHomeSection);
+    }
+    
+    dashboardHomeSection.style.display = 'block';
+    
+    // Handle different sections
+    const auth = window.Auth;
+    if (!auth || !auth.isAuthenticated()) {
+        dashboardHomeSection.innerHTML = '<p>Please log in to access dashboard features.</p>';
+        return;
+    }
+    
+    const userRole = auth.getUserRole();
+    
+    switch (sectionName) {
+        case 'home':
+            if (userRole === 'admin') {
+                auth.loadAdminDashboardHome(dashboardHomeSection);
+            } else {
+                auth.loadVoterDashboardHome(dashboardHomeSection);
+            }
+            break;
+            
+        case 'elections':
+            if (userRole === 'voter') {
+                // Load voter elections content
+                dashboardHomeSection.innerHTML = `
+                    <div class="dashboard-header">
+                        <h2><i class="fas fa-vote-yea"></i> Available Elections</h2>
+                        <p>Participate in ongoing elections</p>
+                    </div>
+                    <div id="voterElectionsContent">
+                        <p>Loading elections...</p>
+                    </div>
+                `;
+                // Load elections for voters
+                if (window.Elections) {
+                    window.Elections.loadElectionsForVoter();
+                }
+            } else if (userRole === 'admin') {
+                // Load admin elections management
+                dashboardHomeSection.innerHTML = `
+                    <div class="dashboard-header">
+                        <h2><i class="fas fa-cogs"></i> Manage Elections</h2>
+                        <p>Create and manage elections</p>
+                    </div>
+                    <div id="adminElectionsContent">
+                        <p>Loading admin elections...</p>
+                    </div>
+                `;
+                // Load admin elections management
+                if (window.Admin) {
+                    window.Admin.loadElectionsManagement();
+                }
+            }
+            break;
+            
+        case 'my-votes':
+            if (userRole === 'voter') {
+                auth.showMyVotes();
+            }
+            break;
+            
+        case 'results':
+            auth.loadVoterResults(dashboardHomeSection);
+            break;
+            
+        default:
+            if (userRole === 'admin') {
+                auth.loadAdminDashboardHome(dashboardHomeSection);
+            } else {
+                auth.loadVoterDashboardHome(dashboardHomeSection);
+            }
+            break;
+    }
+}
+
+// Export Auth class and global functions
 window.Auth = Auth;
+window.showDashboardSection = showDashboardSection;

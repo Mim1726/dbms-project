@@ -154,44 +154,56 @@ class Elections {
             }
         });
 
-        console.log('📊 Categorization Results:', {
-            ongoing: ongoingElections.map(e => e.name),
-            upcoming: upcomingElections.map(e => e.name),
-            ended: endedElections.map(e => e.name)
+        // Sort elections within each category
+        // Ongoing elections: sort by election date (earliest first)
+        ongoingElections.sort((a, b) => new Date(a.election_date) - new Date(b.election_date));
+        
+        // Upcoming elections: sort by election date (earliest first)
+        upcomingElections.sort((a, b) => new Date(a.election_date) - new Date(b.election_date));
+        
+        // Ended elections: sort by election date (most recent first)
+        endedElections.sort((a, b) => new Date(b.election_date) - new Date(a.election_date));
+
+        console.log('📊 Categorization Results (sorted):', {
+            ongoing: ongoingElections.map(e => `${e.name} (${e.election_date})`),
+            upcoming: upcomingElections.map(e => `${e.name} (${e.election_date})`),
+            ended: endedElections.map(e => `${e.name} (${e.election_date})`)
         });
 
         let html = '';
 
         // Ongoing Elections Section
-        html += '<div class="election-section">';
-        html += '<div class="section-header">';
-        html += '<h2><i class="fas fa-play-circle"></i> Ongoing Elections</h2>';
-        html += '<p class="section-description">Elections currently accepting votes</p>';
-        html += '</div>';
-        if (ongoingElections.length > 0) {
-            html += '<div class="elections-grid">';
-            html += ongoingElections.map(election => this.renderElectionCard(election, 'ongoing')).join('');
+            html += '<div class="election-section">';
+            html += '<div class="section-header collapsible" onclick="this.parentElement.classList.toggle(\'collapsed\')">';
+            html += '<h2><i class="fas fa-play-circle"></i> Ongoing Elections</h2>';
+            html += '<p class="section-description">Elections currently accepting votes</p>';
+            html += '<i class="fas fa-chevron-down toggle-icon"></i>';
             html += '</div>';
-        } else {
-            html += `<div class="no-elections-card" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 0; background: #f8fafc; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin: 24px 0;">
-                <i class="fas fa-info-circle" style="font-size: 48px; color: #38bdf8; margin-bottom: 16px;"></i>
-                <h3 style="color: #64748b; margin-bottom: 8px; font-weight: 300; font-size: 20px; letter-spacing: 0.5px;">No Ongoing Election</h3>
-                <p style="color: #6b7280; font-size: 15px; font-weight: 300; text-align: center; max-width: 420px; line-height: 1.6; margin: 0;">There are currently no elections accepting votes. Please check back later or explore upcoming and past elections below.</p>
-            </div>`;
-        }
-        html += '</div>';
+            html += '<div class="elections-grid">';
+            if (ongoingElections.length > 0) {
+                html += ongoingElections.map(election => this.renderElectionCard(election, 'ongoing')).join('');
+            } else {
+                html += `<div class="no-elections-card" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 0; background: #f8fafc; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin: 24px 0;">
+                    <i class="fas fa-info-circle" style="font-size: 48px; color: #38bdf8; margin-bottom: 16px;"></i>
+                    <h3 style="color: #64748b; margin-bottom: 8px; font-weight: 300; font-size: 20px; letter-spacing: 0.5px;">No Ongoing Election</h3>
+                    <p style="color: #6b7280; font-size: 15px; font-weight: 300; text-align: center; max-width: 420px; line-height: 1.6; margin: 0;">There are currently no elections accepting votes. Please check back later or explore upcoming and past elections below.</p>
+                </div>`;
+            }
+            html += '</div>';
+            html += '</div>';
 
         // Upcoming Elections Section
-        if (upcomingElections.length > 0) {
-            html += '<div class="election-section">';
-            html += '<div class="section-header">';
-            html += '<h2><i class="fas fa-clock"></i> Upcoming Elections</h2>';
-            html += '<p class="section-description">Elections scheduled for the future - candidates viewable, voting not yet available</p>';
-            html += '</div>';
-            html += '<div class="elections-grid">';
-            html += upcomingElections.map(election => this.renderElectionCard(election, 'upcoming')).join('');
-            html += '</div></div>';
-        }
+            if (upcomingElections.length > 0) {
+                html += '<div class="election-section">';
+                html += '<div class="section-header collapsible" onclick="this.parentElement.classList.toggle(\'collapsed\')">';
+                html += '<h2><i class="fas fa-clock"></i> Upcoming Elections</h2>';
+                html += '<p class="section-description">Elections scheduled for the future - candidates viewable, voting not yet available</p>';
+                html += '<i class="fas fa-chevron-down toggle-icon"></i>';
+                html += '</div>';
+                html += '<div class="elections-grid">';
+                html += upcomingElections.map(election => this.renderElectionCard(election, 'upcoming')).join('');
+                html += '</div></div>';
+            }
 
         // Ended Elections Section
         if (endedElections.length > 0) {
@@ -252,6 +264,7 @@ class Elections {
     getElectionStatus(election) {
         // Use current date
         const now = new Date();
+        const electionDate = new Date(election.election_date);
         
         console.log(`📅 Checking status for ${election.name}:`, {
             now: now.toISOString(),
@@ -259,51 +272,69 @@ class Elections {
             hasSchedule: election.schedule && election.schedule.length > 0
         });
         
-        // Check if election has a schedule first (most reliable)
-        if (election.schedule && election.schedule.length > 0) {
-            const schedule = election.schedule[0];
-            const votingStart = schedule.voting_start ? new Date(schedule.voting_start) : null;
-            const votingEnd = schedule.voting_end ? new Date(schedule.voting_end) : null;
-            
-            console.log(`📅 Schedule for ${election.name}:`, {
-                votingStart: votingStart?.toISOString(),
-                votingEnd: votingEnd?.toISOString()
-            });
-            
-            if (votingStart && votingEnd) {
-                // Use schedule for status determination
-                if (now > votingEnd) {
-                    return 'Ended';
-                } else if (now >= votingStart && now <= votingEnd) {
-                    return 'Active';
-                } else if (now < votingStart) {
-                    return 'Upcoming';
-                }
-            }
+        // Primary logic: Use election_date as the main indicator
+        // This is more reliable than potentially incorrect schedule data
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Start of today
+        
+        const electionDateOnly = new Date(election.election_date);
+        electionDateOnly.setHours(0, 0, 0, 0); // Start of election day
+        
+        // If election date is in the future, it's upcoming
+        if (electionDateOnly > today) {
+            console.log(`📅 ${election.name}: Upcoming (election date is future: ${election.election_date})`);
+            return 'Upcoming';
         }
         
-        // Fallback to election_date comparison only if no schedule
-        const electionDate = new Date(election.election_date);
-        
-        console.log(`📅 Fallback for ${election.name}:`, {
-            electionDate: electionDate.toISOString(),
-            isElectionInFuture: electionDate >= now
-        });
-        
-        // Always prefer future dates as upcoming when no schedule is available
-        if (electionDate >= now) {
-            return 'Upcoming';
-        } else {
-            // Past election - check how far in the past
-            const daysDiff = (now - electionDate) / (1000 * 60 * 60 * 24);
+        // If election date is today, check if it's still active
+        if (electionDateOnly.getTime() === today.getTime()) {
+            console.log(`📅 ${election.name}: Election is today, checking active status`);
             
-            if (daysDiff > 1) {
+            // Check schedule for more precise timing if available
+            if (election.schedule && election.schedule.length > 0) {
+                const schedule = election.schedule[0];
+                const votingEnd = schedule.voting_end ? new Date(schedule.voting_end) : null;
+                
+                if (votingEnd && now > votingEnd) {
+                    console.log(`📅 ${election.name}: Ended (past voting end time)`);
+                    return 'Ended';
+                }
+                // If voting hasn't ended yet (or no end time), it's active
+                console.log(`📅 ${election.name}: Active (today's election, within or no voting hours)`);
+                return 'Active';
+            }
+            
+            // For today's election without schedule, assume it's active unless explicitly marked inactive
+            // This ensures elections scheduled for today appear as ongoing by default
+            if (election.is_active === 'N') {
+                console.log(`📅 ${election.name}: Ended (today's election explicitly marked inactive)`);
                 return 'Ended';
             } else {
-                // Election was today or yesterday - check if still active
-                return election.is_active === 'Y' ? 'Active' : 'Ended';
+                console.log(`📅 ${election.name}: Active (today's election, assuming active)`);
+                return 'Active';
             }
         }
+        
+        // If election date is in the past
+        if (electionDateOnly < today) {
+            const daysPast = Math.floor((today - electionDateOnly) / (1000 * 60 * 60 * 24));
+            console.log(`📅 ${election.name}: ${daysPast} days past election date`);
+            
+            // Elections more than 1 day in the past are definitely ended
+            if (daysPast > 1) {
+                console.log(`📅 ${election.name}: Ended (more than 1 day past)`);
+                return 'Ended';
+            }
+            
+            // Yesterday's election - check if somehow still active
+            const status = election.is_active === 'Y' ? 'Active' : 'Ended';
+            console.log(`📅 ${election.name}: ${status} (yesterday's election, is_active: ${election.is_active})`);
+            return status;
+        }
+        
+        // Default fallback (should not reach here)
+        console.log(`📅 ${election.name}: Defaulting to Ended`);
+        return 'Ended';
     }
 
     // Get appropriate actions for election based on status and category
