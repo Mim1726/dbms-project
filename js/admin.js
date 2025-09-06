@@ -162,15 +162,6 @@ class Admin {
                                                     <button class="btn btn-small btn-outline" onclick="window.Admin.editElection('${election.election_id}')" title="Edit">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
-                                                    ${hasEnded ? `
-                                                        <button class="btn btn-small btn-primary" onclick="window.Admin.publishResults('${election.election_id}')" title="Publish Results">
-                                                            <i class="fas fa-chart-line"></i> Results
-                                                        </button>
-                                                    ` : `
-                                                        <button class="btn btn-small btn-disabled" disabled title="Results available after election ends">
-                                                            <i class="fas fa-clock"></i> Pending
-                                                        </button>
-                                                    `}
                                                     <button class="btn btn-small btn-danger" onclick="window.Admin.deleteElection('${election.election_id}')" title="Delete">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
