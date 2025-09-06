@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Voters</title>
+</head>
+<body>
+    <h1>Voter Debug Test</h1>
+    <div id="results"></div>
+    
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script>
+        async function debugVoters() {
+            const { data: voters, error } = await supabase
+                .from('voter')
+                .select('voter_id, full_name, email, is_verified')
+                .order('voter_id', { ascending: false });
+
+            const resultsDiv = document.getElementById('results');
+            
+            if (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+                return;
+            }
+
+            console.log('Raw voter data:', voters);
+            
+            let html = `<h2>All Voters (${voters.length})</h2><table border="1" style="border-collapse: collapse;">
+                <tr><th>ID</th><th>Name</th><th>Email</th><th>is_verified</th><th>Type</th><th>Length</th></tr>`;
+            
+            voters.forEach(voter => {
+                html += `<tr>
+                    <td>${voter.voter_id}</td>
+                    <td>${voter.full_name}</td>
+                    <td>${voter.email}</td>
+                    <td>"${voter.is_verified}"</td>
+                    <td>${typeof voter.is_verified}</td>
+                    <td>${voter.is_verified ? voter.is_verified.length : 'null'}</td>
+                </tr>`;
+            });
+            
+            html += '</table>';
+            
+            const verifiedVoters = voters.filter(v => v.is_verified === true || v.is_verified === 'Y');
+            const pendingVoters = voters.filter(v => !(v.is_verified === true || v.is_verified === 'Y'));
+            
+            html += `<h3>Filter Results:</h3>
+                     <p>Verified voters (is_verified === true OR 'Y'): ${verifiedVoters.length}</p>
+                     <p>Pending voters: ${pendingVoters.length}</p>`;
+            
+            resultsDiv.innerHTML = html;
+        }
+        
+        // Run test when page loads
+        window.addEventListener('load', debugVoters);
+    </script>
+</body>
+</html>

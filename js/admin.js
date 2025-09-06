@@ -1788,8 +1788,11 @@ class Admin {
                                                         <button class="btn btn-small btn-warning" onclick="window.Admin.moveCandidate('${candidate.candidate_id}')">
                                                             <i class="fas fa-exchange-alt"></i> Move
                                                         </button>
-                                                        <button class="btn btn-small btn-danger" onclick="window.Admin.rejectCandidate('${candidate.candidate_id}')">
-                                                            <i class="fas fa-times"></i> Remove
+                                                        <button class="btn btn-small btn-secondary" onclick="window.Admin.moveToPending('${candidate.candidate_id}')" title="Move back to pending">
+                                                            <i class="fas fa-undo"></i> Move to Pending
+                                                        </button>
+                                                        <button class="btn btn-small btn-danger" onclick="window.Admin.rejectCandidate('${candidate.candidate_id}')" title="Completely remove candidate">
+                                                            <i class="fas fa-trash"></i> Delete
                                                         </button>
                                                     </div>
                                                 </div>
@@ -2346,6 +2349,38 @@ class Admin {
         }
     }
 
+    // Move approved candidate back to pending status
+    async moveToPending(candidateId) {
+        if (!confirm('Are you sure you want to move this candidate back to pending status? They will need to be re-approved.')) {
+            return;
+        }
+        
+        try {
+            Utils.showLoading();
+            
+            // Update candidate status to pending
+            const { error } = await supabase
+                .from('candidate')
+                .update({ status: 'pending' })
+                .eq('candidate_id', candidateId);
+
+            if (error) throw error;
+
+            Utils.showToast('Candidate moved back to pending status!', 'success');
+            
+            const container = document.querySelector('#adminTabContent');
+            if (container) {
+                this.loadCandidatesTab(container);
+            }
+            
+        } catch (error) {
+            console.error('Error moving candidate to pending:', error);
+            Utils.showToast('Failed to move candidate: ' + error.message, 'error');
+        } finally {
+            Utils.hideLoading();
+        }
+    }
+
     // View candidate details (placeholder)
     async viewCandidate(candidateId) {
         try {
@@ -2416,9 +2451,24 @@ class Admin {
 
             if (error) throw error;
 
-            // Split voters into verified and pending
-            const verifiedVoters = voters.filter(v => v.is_verified === 'Y');
-            const pendingVoters = voters.filter(v => v.is_verified !== 'Y');
+            console.log('All voters fetched:', voters);
+            console.log('Voters with is_verified field:', voters.map(v => ({ id: v.voter_id, name: v.full_name, is_verified: v.is_verified, is_verified_type: typeof v.is_verified })));
+
+            // Split voters into verified and pending (handle both boolean and string values)
+            const verifiedVoters = voters.filter(v => {
+                // Handle both boolean true and string 'Y'
+                const verified = v.is_verified === true || v.is_verified === 'Y' || String(v.is_verified).trim().toUpperCase() === 'TRUE';
+                console.log(`Voter ${v.voter_id} (${v.full_name}): is_verified=${v.is_verified} (${typeof v.is_verified}) -> verified=${verified}`);
+                return verified;
+            });
+            const pendingVoters = voters.filter(v => {
+                // Handle both boolean false and string 'N'
+                const verified = v.is_verified === true || v.is_verified === 'Y' || String(v.is_verified).trim().toUpperCase() === 'TRUE';
+                return !verified;
+            });
+
+            console.log('Verified voters:', verifiedVoters.length, verifiedVoters);
+            console.log('Pending voters:', pendingVoters.length, pendingVoters);
 
             container.innerHTML = `
                 <div class="admin-section">
@@ -2553,12 +2603,39 @@ class Admin {
         try {
             Utils.showLoading();
             
+            console.log('Attempting to verify voter:', voterId);
+            
+            // First, let's check the current status
+            const { data: beforeUpdate, error: beforeError } = await supabase
+                .from('voter')
+                .select('voter_id, full_name, is_verified')
+                .eq('voter_id', voterId)
+                .single();
+                
+            if (beforeError) throw beforeError;
+            console.log('Before update:', beforeUpdate);
+            
             const { error } = await supabase
                 .from('voter')
-                .update({ is_verified: 'Y' })
+                .update({ is_verified: true })
                 .eq('voter_id', voterId);
 
             if (error) throw error;
+
+            // Check the status after update
+            const { data: afterUpdate, error: afterError } = await supabase
+                .from('voter')
+                .select('voter_id, full_name, is_verified')
+                .eq('voter_id', voterId)
+                .single();
+                
+            if (afterError) throw afterError;
+            console.log('After update:', afterUpdate);
+
+            console.log('Voter verification successful for ID:', voterId);
+            
+            // Wait a moment before reloading to ensure database update is complete
+            await new Promise(resolve => setTimeout(resolve, 500));
 
             Utils.showToast('Voter verified successfully!', 'success');
             
@@ -2572,6 +2649,42 @@ class Admin {
             Utils.showToast('Failed to verify voter: ' + error.message, 'error');
         } finally {
             Utils.hideLoading();
+        }
+    }
+
+    // Debug function - can be called from browser console: window.Admin.debugVoters()
+    async debugVoters() {
+        try {
+            const { data: voters, error } = await supabase
+                .from('voter')
+                .select('*')
+                .order('voter_id', { ascending: false });
+
+            if (error) throw error;
+
+            console.log('=== VOTER DEBUG ===');
+            console.log('Total voters:', voters.length);
+            
+            voters.forEach(voter => {
+                console.log(`Voter ${voter.voter_id}: ${voter.full_name}`);
+                console.log(`  is_verified: ${voter.is_verified} (type: ${typeof voter.is_verified})`);
+                console.log(`  equals true: ${voter.is_verified === true}`);
+                console.log(`  equals 'Y': ${voter.is_verified === 'Y'}`);
+                console.log('---');
+            });
+            
+            const verified = voters.filter(v => v.is_verified === true || v.is_verified === 'Y');
+            const pending = voters.filter(v => !(v.is_verified === true || v.is_verified === 'Y'));
+            
+            console.log(`Verified count: ${verified.length}`);
+            console.log(`Pending count: ${pending.length}`);
+            console.log('Verified voters:', verified.map(v => v.full_name));
+            console.log('=== END DEBUG ===');
+            
+            return { total: voters.length, verified: verified.length, pending: pending.length };
+        } catch (error) {
+            console.error('Debug error:', error);
+            return null;
         }
     }
 
@@ -2609,7 +2722,7 @@ class Admin {
                         <p><strong>Date of Birth:</strong> ${voter.dob ? new Date(voter.dob).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</p>
                         <p><strong>NID Number:</strong> ${voter.nid_number || 'N/A'}</p>
                         <p><strong>Registration Date:</strong> ${voter.registration_date ? Utils.formatDate(voter.registration_date) : 'N/A'}</p>
-                        <p><strong>Verified:</strong> ${voter.is_verified === 'Y' ? 'Yes' : 'No'}</p>
+                        <p><strong>Verified:</strong> ${(voter.is_verified === true || voter.is_verified === 'Y') ? 'Yes' : 'No'}</p>
                     </div>
                 </div>
             `;
