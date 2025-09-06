@@ -1,8 +1,19 @@
 // Helper to show election from vote card
 window.showElectionFromVote = function(electionId) {
-    // Navigate to elections section
-    if (window.showSection) {
-        window.showSection('elections');
+    // Check if we're in voter dashboard or main app
+    const voterDashboard = document.getElementById('voterDashboard');
+    const isInVoterDashboard = voterDashboard && !voterDashboard.classList.contains('hidden');
+    
+    if (isInVoterDashboard) {
+        // Use dashboard navigation
+        if (window.showDashboardSection) {
+            window.showDashboardSection('elections');
+        }
+    } else {
+        // Use main app navigation
+        if (window.showSection) {
+            window.showSection('elections');
+        }
     }
     
     setTimeout(() => {

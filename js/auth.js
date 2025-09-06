@@ -2044,23 +2044,19 @@ function showDashboardSection(section) {
         dashboardHome.style.display = 'none';
     }
 
+    // Reset container visibility states
+    const voterDashboard = document.getElementById('voterDashboard');
+    const mainContent = document.getElementById('mainContent');
+    const adminDashboard = document.getElementById('adminDashboard');
+    
+    if (voterDashboard) voterDashboard.style.display = 'none';
+    if (mainContent) mainContent.style.display = 'none';
+    if (adminDashboard) adminDashboard.style.display = 'none';
+
     // Show appropriate section based on dashboard type and user role
     switch (section) {
         case 'home':
-            // Hide admin dashboard if it's showing
-            const adminDashboard = document.getElementById('adminDashboard');
-            if (adminDashboard) {
-                adminDashboard.style.display = 'none';
-            }
-            
-            // Hide voter dashboard if it's showing
-            const voterDashboard = document.getElementById('voterDashboard');
-            if (voterDashboard) {
-                voterDashboard.style.display = 'none';
-            }
-            
             // Show main content
-            const mainContent = document.getElementById('mainContent');
             if (mainContent) {
                 mainContent.style.display = 'block';
             }
@@ -2075,13 +2071,14 @@ function showDashboardSection(section) {
         case 'elections':
             if (userType === 'admin') {
                 // Show admin dashboard for managing elections
-                document.getElementById('adminDashboard').style.display = 'block';
-                document.getElementById('mainContent').style.display = 'none';
+                if (adminDashboard) adminDashboard.style.display = 'block';
                 if (window.Admin) {
                     window.Admin.showTab('elections');
                 }
             } else {
                 // Show elections section for voters
+                if (mainContent) mainContent.style.display = 'block';
+                
                 const electionsSection = document.getElementById('elections');
                 if (electionsSection) {
                     electionsSection.style.display = 'block';
@@ -2093,15 +2090,13 @@ function showDashboardSection(section) {
             }
             break;
         case 'candidates':
-            document.getElementById('adminDashboard').style.display = 'block';
-            document.getElementById('mainContent').style.display = 'none';
+            if (adminDashboard) adminDashboard.style.display = 'block';
             if (window.Admin) {
                 window.Admin.showTab('candidates');
             }
             break;
         case 'voters':
-            document.getElementById('adminDashboard').style.display = 'block';
-            document.getElementById('mainContent').style.display = 'none';
+            if (adminDashboard) adminDashboard.style.display = 'block';
             if (window.Admin) {
                 window.Admin.showTab('voters');
             }
@@ -2109,8 +2104,7 @@ function showDashboardSection(section) {
         case 'results':
             if (userType === 'admin') {
                 // Show admin dashboard for viewing results
-                document.getElementById('adminDashboard').style.display = 'block';
-                document.getElementById('mainContent').style.display = 'none';
+                if (adminDashboard) adminDashboard.style.display = 'block';
                 if (window.Admin) {
                     // Get the admin tab content container
                     const container = document.getElementById('adminTabContent');
@@ -2126,17 +2120,10 @@ function showDashboardSection(section) {
                 }
             } else {
                 // Show results section for voters
-                document.getElementById('mainContent').style.display = 'block';
-                document.getElementById('voterDashboard').style.display = 'none';
+                if (mainContent) mainContent.style.display = 'block';
                 
                 const resultsSection = document.getElementById('results');
                 if (resultsSection) {
-                    // Hide other sections
-                    document.querySelectorAll('#mainContent .section').forEach(section => {
-                        section.style.display = 'none';
-                        section.classList.remove('active');
-                    });
-                    
                     // Show results section
                     resultsSection.style.display = 'block';
                     resultsSection.classList.add('active');
@@ -2158,8 +2145,7 @@ function showDashboardSection(section) {
             // Show voter's voting history
             if (userType === 'voter') {
                 // Show voter dashboard
-                document.getElementById('voterDashboard').style.display = 'block';
-                document.getElementById('mainContent').style.display = 'none';
+                if (voterDashboard) voterDashboard.style.display = 'block';
                 
                 // Get the voter content container
                 const voterContent = document.getElementById('voterContent');
