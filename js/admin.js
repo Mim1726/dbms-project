@@ -3725,9 +3725,9 @@ class Admin {
                                                 <span style="color: #64748b; font-size: 12px;">
                                                     ID: ${candidate.candidate_id}
                                                 </span>
-                                                <button class="btn btn-tiny btn-danger" onclick="window.Admin.removeCandidateFromElection('${candidate.candidate_id}', '${election.election_id}')"
-                                                    style="padding: 2px 6px; font-size: 10px;" title="Remove candidate">
-                                                    <i class="fas fa-trash"></i> Remove
+                                                <button class="btn btn-tiny btn-warning" onclick="window.Admin.moveCandidateToPending('${candidate.candidate_id}', '${election.election_id}')"
+                                                    style="padding: 2px 6px; font-size: 10px;" title="Move to pending applications">
+                                                    <i class="fas fa-clock"></i> To Pending
                                                 </button>
                                             </div>
                                         </div>
@@ -4293,36 +4293,53 @@ class Admin {
         }
     }
 
-    // Remove candidate from election
-    async removeCandidateFromElection(candidateId, electionId) {
-        if (!confirm('Are you sure you want to remove this candidate from the election?')) {
+    // Move candidate to pending applications
+    async moveCandidateToPending(candidateId, electionId) {
+        if (!confirm('Are you sure you want to move this candidate to pending applications? They will need to be re-approved.')) {
             return;
         }
 
         try {
             Utils.showLoading();
 
-            // Delete candidate
-            const { error } = await supabase
+            // Update candidate status to pending
+            const { error: updateError } = await supabase
                 .from('candidate')
+                .update({ status: 'pending' })
+                .eq('candidate_id', candidateId);
+
+            if (updateError) throw updateError;
+
+            // Remove candidate from contest (if they are in one)
+            const { error: contestError } = await supabase
+                .from('contest')
                 .delete()
                 .eq('candidate_id', candidateId)
                 .eq('election_id', electionId);
 
-            if (error) throw error;
+            // Don't throw error for contest deletion as it might not exist
+            if (contestError) {
+                console.warn('Contest deletion warning:', contestError);
+            }
 
-            Utils.showToast('Candidate removed successfully', 'success');
+            Utils.showToast('Candidate moved to pending applications successfully', 'success');
             
             // Refresh the detailed view
             document.querySelector('.upcoming-election-details-modal')?.remove();
             this.viewDetailedResults(electionId);
 
         } catch (error) {
-            console.error('Error removing candidate:', error);
-            Utils.showToast('Error removing candidate: ' + error.message, 'error');
+            console.error('Error moving candidate to pending:', error);
+            Utils.showToast('Error moving candidate to pending: ' + error.message, 'error');
         } finally {
             Utils.hideLoading();
         }
+    }
+
+    // Remove candidate from election (legacy function - kept for backward compatibility)
+    async removeCandidateFromElection(candidateId, electionId) {
+        // Redirect to the new function
+        return this.moveCandidateToPending(candidateId, electionId);
     }
 
     // View voter details
