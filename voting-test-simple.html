@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Voting Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+        .test-container { background: white; padding: 20px; border-radius: 8px; max-width: 600px; margin: 0 auto; }
+        .test-btn { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        .test-btn:hover { background: #0056b3; }
+        .log { background: #f8f9fa; padding: 10px; margin: 5px 0; border-left: 4px solid #007bff; font-family: monospace; }
+        .error { border-left-color: #dc3545; background: #f8d7da; }
+        .success { border-left-color: #28a745; background: #d4edda; }
+        .warning { border-left-color: #ffc107; background: #fff3cd; }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🗳️ Voting System Test</h1>
+        <p>This page will test if the voting system is properly loaded and working.</p>
+        
+        <button class="test-btn" onclick="runAllTests()">🔄 Run All Tests</button>
+        <button class="test-btn" onclick="clearLogs()">🧹 Clear Logs</button>
+        
+        <div id="logs"></div>
+    </div>
+
+    <!-- Load the same scripts as the main page -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js?v=1.5"></script>
+    <script src="js/utils.js?v=1.5"></script>
+    <script src="js/auth.js?v=1.5"></script>
+    <script src="js/elections.js?v=1.9&test=hardcoded-date"></script>
+    <script src="js/voting.js?v=1.6"></script>
+    <script src="js/admin.js?v=1.5"></script>
+    <script src="js/voter-patch.js?v=1.0"></script>
+    <script src="js/main.js?v=1.5"></script>
+
+    <script>
+        function log(message, type = 'log') {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            logs.innerHTML += `<div class="log ${type}">[${timestamp}] ${message}</div>`;
+            console.log(`[${timestamp}] ${message}`);
+            
+            // Auto-scroll to bottom
+            logs.scrollTop = logs.scrollHeight;
+        }
+        
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+        
+        function runAllTests() {
+            clearLogs();
+            log('🚀 Starting comprehensive voting system tests...', 'log');
+            
+            // Test 1: Check if scripts are loaded
+            setTimeout(() => testScriptsLoaded(), 100);
+            
+            // Test 2: Check voting instance
+            setTimeout(() => testVotingInstance(), 200);
+            
+            // Test 3: Test method calls
+            setTimeout(() => testMethodCalls(), 300);
+            
+            // Test 4: Test button simulation
+            setTimeout(() => testButtonSimulation(), 400);
+            
+            setTimeout(() => log('🏁 All tests completed!', 'success'), 500);
+        }
+        
+        function testScriptsLoaded() {
+            log('📋 Test 1: Checking if scripts are loaded...', 'log');
+            
+            const checks = [
+                { name: 'Supabase', obj: 'supabase', type: 'object' },
+                { name: 'Utils', obj: 'Utils', type: 'function' },
+                { name: 'Auth', obj: 'Auth', type: 'function' },
+                { name: 'Elections', obj: 'Elections', type: 'function' },
+                { name: 'Voting (class)', obj: 'Voting', type: 'function' },
+                { name: 'window.Voting (instance)', obj: 'window.Voting', type: 'object' }
+            ];
+            
+            checks.forEach(check => {
+                try {
+                    const obj = eval(check.obj);
+                    if (typeof obj === check.type) {
+                        log(`✅ ${check.name}: Found (${typeof obj})`, 'success');
+                    } else {
+                        log(`⚠️ ${check.name}: Wrong type (expected ${check.type}, got ${typeof obj})`, 'warning');
+                    }
+                } catch (error) {
+                    log(`❌ ${check.name}: Not found or error: ${error.message}`, 'error');
+                }
+            });
+        }
+        
+        function testVotingInstance() {
+            log('🔍 Test 2: Testing voting instance...', 'log');
+            
+            try {
+                if (!window.Voting) {
+                    log('❌ window.Voting not found', 'error');
+                    return;
+                }
+                
+                log(`✅ window.Voting exists: ${typeof window.Voting}`, 'success');
+                
+                // Check critical methods
+                const methods = ['confirmVote', 'selectCandidate', 'startVoting', 'cancelVoting'];
+                methods.forEach(method => {
+                    if (typeof window.Voting[method] === 'function') {
+                        log(`✅ Method ${method}: Available`, 'success');
+                    } else {
+                        log(`❌ Method ${method}: Missing`, 'error');
+                    }
+                });
+                
+                // Check properties
+                log(`📊 selectedCandidate: ${window.Voting.selectedCandidate || 'null'}`, 'log');
+                log(`📊 currentElection: ${window.Voting.currentElection ? 'set' : 'null'}`, 'log');
+                log(`📊 currentCandidates: ${window.Voting.currentCandidates ? window.Voting.currentCandidates.length + ' items' : 'null'}`, 'log');
+                
+            } catch (error) {
+                log(`❌ Error testing voting instance: ${error.message}`, 'error');
+            }
+        }
+        
+        function testMethodCalls() {
+            log('🎯 Test 3: Testing method calls...', 'log');
+            
+            try {
+                if (!window.Voting) {
+                    log('❌ Cannot test methods - window.Voting not found', 'error');
+                    return;
+                }
+                
+                // Test selectCandidate (safe method)
+                log('Testing selectCandidate with dummy data...', 'log');
+                window.Voting.selectedCandidate = 'test123';
+                log(`✅ selectedCandidate set to: ${window.Voting.selectedCandidate}`, 'success');
+                
+                // Test if confirmVote function exists and can be called (but don't actually execute it)
+                if (typeof window.Voting.confirmVote === 'function') {
+                    log('✅ confirmVote method is callable', 'success');
+                } else {
+                    log('❌ confirmVote method not callable', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Error testing method calls: ${error.message}`, 'error');
+            }
+        }
+        
+        function testButtonSimulation() {
+            log('🔲 Test 4: Testing button simulation...', 'log');
+            
+            try {
+                // Create a test button
+                const testBtn = document.createElement('button');
+                testBtn.innerHTML = 'Test Submit Vote';
+                testBtn.id = 'testSubmitBtn';
+                
+                // Try adding event listener like the real voting interface
+                testBtn.addEventListener('click', () => {
+                    log('🎉 Button click event fired successfully!', 'success');
+                    
+                    if (window.Voting && typeof window.Voting.confirmVote === 'function') {
+                        log('✅ Would call window.Voting.confirmVote() now', 'success');
+                    } else {
+                        log('❌ Cannot call confirmVote - method not available', 'error');
+                    }
+                });
+                
+                // Add button to test container temporarily
+                const container = document.querySelector('.test-container');
+                container.appendChild(testBtn);
+                
+                log('✅ Test button created with event listener', 'success');
+                
+                // Auto-click it to test
+                setTimeout(() => {
+                    log('🖱️ Auto-clicking test button...', 'log');
+                    testBtn.click();
+                    
+                    // Remove test button after test
+                    setTimeout(() => {
+                        testBtn.remove();
+                        log('🧹 Test button removed', 'log');
+                    }, 1000);
+                }, 500);
+                
+            } catch (error) {
+                log(`❌ Error in button simulation: ${error.message}`, 'error');
+            }
+        }
+        
+        // Auto-run tests when page loads
+        window.addEventListener('load', () => {
+            log('🔄 Page loaded, running tests in 2 seconds...', 'log');
+            setTimeout(runAllTests, 2000);
+        });
+    </script>
+</body>
+</html>

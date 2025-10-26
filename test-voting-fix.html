@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Voting Fix</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-result {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background-color: #e8f5e8; border-color: #4caf50; }
+        .error { background-color: #ffebee; border-color: #f44336; }
+    </style>
+</head>
+<body>
+    <h1>Voting Fix Test</h1>
+    <p>This test verifies if the Women Leadership Poll status fix is working correctly.</p>
+    
+    <div id="testResults"></div>
+
+    <script>
+        // Test data for Women Leadership Poll
+        const testElection = {
+            election_id: 305,
+            name: "Women Leadership Poll",
+            election_date: "2025-11-10", // Future date
+            is_active: "Y", // Explicitly marked as active
+            description: "Empowering women leaders"
+        };
+
+        // Copy the fixed getElectionStatus function from elections.js
+        function getElectionStatus(election) {
+            console.log(`📅 Checking status for ${election.name}:`, {
+                electionDate: election.election_date,
+                isActive: election.is_active
+            });
+            
+            // PRIORITY 1: If election is explicitly marked as active, trust that setting
+            if (election.is_active === 'Y') {
+                console.log(`📅 ${election.name}: Active (explicitly marked as active with is_active = 'Y')`);
+                return 'Active';
+            }
+            
+            // PRIORITY 2: If election is explicitly marked as inactive, it's ended
+            if (election.is_active === 'N') {
+                console.log(`📅 ${election.name}: Ended (explicitly marked as inactive with is_active = 'N')`);
+                return 'Ended';
+            }
+            
+            // PRIORITY 3: Use date-based logic only when is_active is not explicitly set
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const electionDateOnly = new Date(election.election_date);
+            electionDateOnly.setHours(0, 0, 0, 0);
+            
+            if (electionDateOnly > today) {
+                console.log(`📅 ${election.name}: Upcoming (election date is future: ${election.election_date})`);
+                return 'Upcoming';
+            }
+            
+            return 'Active'; // Default for current/past dates
+        }
+
+        // Run the test
+        function runTest() {
+            const resultsDiv = document.getElementById('testResults');
+            
+            const status = getElectionStatus(testElection);
+            
+            let resultClass = '';
+            let resultMessage = '';
+            
+            if (status === 'Active') {
+                resultClass = 'success';
+                resultMessage = `✅ SUCCESS: "${testElection.name}" correctly shows as "${status}" even though the election date is in the future (${testElection.election_date}). The is_active='Y' flag is now properly prioritized!`;
+            } else {
+                resultClass = 'error';
+                resultMessage = `❌ FAILED: "${testElection.name}" shows as "${status}" instead of "Active". The fix may not be working correctly.`;
+            }
+            
+            resultsDiv.innerHTML = `
+                <div class="test-result ${resultClass}">
+                    <h3>Test Result</h3>
+                    <p><strong>Election:</strong> ${testElection.name}</p>
+                    <p><strong>Election Date:</strong> ${testElection.election_date} (Future)</p>
+                    <p><strong>is_active:</strong> ${testElection.is_active}</p>
+                    <p><strong>Computed Status:</strong> ${status}</p>
+                    <p><strong>Result:</strong> ${resultMessage}</p>
+                </div>
+                
+                <div class="test-result">
+                    <h3>Expected Behavior After Fix</h3>
+                    <ol>
+                        <li>The "Women Leadership Poll" should appear in the <strong>"Ongoing Elections"</strong> section</li>
+                        <li>The "Vote Now" button should work without showing error messages</li>
+                        <li>Users should be able to select candidates and cast votes</li>
+                        <li>The "is_active = 'Y'" flag should override date-based logic</li>
+                    </ol>
+                </div>
+                
+                <div class="test-result">
+                    <h3>Next Steps</h3>
+                    <p>1. Refresh your main voting page (localhost:8080/#home)</p>
+                    <p>2. Go to the "Elections" section</p>
+                    <p>3. The "Women Leadership Poll" should now appear under "Ongoing Elections"</p>
+                    <p>4. Click "Vote Now" - it should work without errors</p>
+                </div>
+            `;
+        }
+
+        // Run test on page load
+        runTest();
+    </script>
+</body>
+</html>

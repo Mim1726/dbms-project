@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Election Status</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .debug-result {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .active { background-color: #e8f5e8; }
+        .ended { background-color: #ffebee; }
+        .upcoming { background-color: #e3f2fd; }
+    </style>
+</head>
+<body>
+    <h1>Election Status Debug - Current Issues</h1>
+    <p><strong>Current Date:</strong> October 25, 2025</p>
+    <div id="debugResults"></div>
+
+    <script>
+        // Test elections based on your screenshot
+        const testElections = [
+            {
+                name: "Women Leadership Poll",
+                election_date: "2025-10-25", // TODAY
+                is_active: "Y",
+                description: "Empowering women leaders"
+            },
+            {
+                name: "National Election 2025",
+                election_date: "2025-12-01", // FUTURE
+                is_active: "Y",
+                description: "Nationwide election"
+            }
+        ];
+
+        // Current logic (the one that's not working correctly)
+        function getCurrentLogic(election) {
+            const now = new Date();
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const electionDateOnly = new Date(election.election_date);
+            electionDateOnly.setHours(0, 0, 0, 0);
+            
+            console.log(`Testing ${election.name}:`, {
+                today: today.toISOString(),
+                electionDate: electionDateOnly.toISOString(),
+                isActive: election.is_active
+            });
+            
+            // Check if election is clearly in the past (more than 1 day ago)
+            const daysPast = Math.floor((today - electionDateOnly) / (1000 * 60 * 60 * 24));
+            console.log(`Days past: ${daysPast}`);
+            
+            if (daysPast > 1) {
+                console.log(`→ Ended (more than 1 day past)`);
+                return 'Ended';
+            }
+            
+            // If election is explicitly marked as inactive, it's ended
+            if (election.is_active === 'N') {
+                console.log(`→ Ended (marked inactive)`);
+                return 'Ended';
+            }
+            
+            // If election is today or recent (within 1 day), check active flag first
+            if (daysPast <= 1) {
+                if (election.is_active === 'Y') {
+                    console.log(`→ Active (recent + marked active)`);
+                    return 'Active';
+                } else if (daysPast === 0) {
+                    console.log(`→ Active (today, assuming active)`);
+                    return 'Active';
+                }
+            }
+            
+            // If election date is in the future, it's upcoming (unless explicitly active)
+            if (electionDateOnly > today) {
+                if (election.is_active === 'Y') {
+                    console.log(`→ Active (future + marked active)`);
+                    return 'Active';
+                } else {
+                    console.log(`→ Upcoming (future, not marked active)`);
+                    return 'Upcoming';
+                }
+            }
+            
+            console.log(`→ Default fallback`);
+            return 'Ended';
+        }
+
+        // Fixed logic
+        function getFixedLogic(election) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const electionDateOnly = new Date(election.election_date);
+            electionDateOnly.setHours(0, 0, 0, 0);
+            
+            const daysPast = Math.floor((today - electionDateOnly) / (1000 * 60 * 60 * 24));
+            const daysFuture = Math.floor((electionDateOnly - today) / (1000 * 60 * 60 * 24));
+            
+            console.log(`FIXED Testing ${election.name}:`, {
+                daysPast,
+                daysFuture,
+                isToday: daysPast === 0,
+                isActive: election.is_active
+            });
+            
+            // Rule 1: Elections more than 1 day in the past are ended
+            if (daysPast > 1) {
+                return 'Ended';
+            }
+            
+            // Rule 2: Today's elections are always active
+            if (daysPast === 0) {
+                return 'Active';
+            }
+            
+            // Rule 3: Yesterday's elections can be active if marked as such
+            if (daysPast === 1 && election.is_active === 'Y') {
+                return 'Active';
+            }
+            
+            // Rule 4: Future elections should be upcoming unless it's a special case
+            if (daysFuture > 0) {
+                // Only very special future elections should be active (like pre-voting)
+                // Most future elections should be upcoming
+                return 'Upcoming';
+            }
+            
+            return 'Ended';
+        }
+
+        // Run tests
+        function runDebugTests() {
+            const resultsDiv = document.getElementById('debugResults');
+            let html = '';
+            
+            testElections.forEach(election => {
+                const currentResult = getCurrentLogic(election);
+                const fixedResult = getFixedLogic(election);
+                
+                html += `
+                    <div class="debug-result ${currentResult.toLowerCase()}">
+                        <h3>${election.name}</h3>
+                        <p><strong>Date:</strong> ${election.election_date}</p>
+                        <p><strong>is_active:</strong> ${election.is_active}</p>
+                        <p><strong>Current Logic Result:</strong> ${currentResult} ${currentResult === 'Active' && election.election_date > '2025-10-25' ? '❌ WRONG' : currentResult === 'Ended' && election.election_date === '2025-10-25' ? '❌ WRONG' : '✅'}</p>
+                        <p><strong>Fixed Logic Result:</strong> ${fixedResult} ${fixedResult === 'Active' && election.election_date === '2025-10-25' ? '✅ CORRECT' : fixedResult === 'Upcoming' && election.election_date > '2025-10-25' ? '✅ CORRECT' : ''}</p>
+                    </div>
+                `;
+            });
+            
+            html += `
+                <div class="debug-result">
+                    <h3>Issues Identified:</h3>
+                    <ul>
+                        <li><strong>Women Leadership Poll:</strong> Should be Active (today's election) but showing as Ended</li>
+                        <li><strong>National Election 2025:</strong> Should be Upcoming (future election) but showing as Active</li>
+                    </ul>
+                    <h3>Root Cause:</h3>
+                    <p>The logic is giving too much priority to the is_active='Y' flag for future elections, and something is wrong with today's date calculation.</p>
+                </div>
+            `;
+            
+            resultsDiv.innerHTML = html;
+        }
+
+        runDebugTests();
+    </script>
+</body>
+</html>

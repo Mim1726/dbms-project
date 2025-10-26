@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Direct Button Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .test-btn { background: #007bff; color: white; padding: 15px 30px; border: none; border-radius: 5px; cursor: pointer; margin: 10px; font-size: 16px; }
+        .log { background: #f8f9fa; padding: 10px; margin: 10px 0; border-left: 4px solid #007bff; }
+        .error { border-left-color: #dc3545; background: #f8d7da; }
+        .success { border-left-color: #28a745; background: #d4edda; }
+    </style>
+</head>
+<body>
+    <h1>Direct Vote Button Test</h1>
+    <p>This will test the voting functionality directly.</p>
+    
+    <button class="test-btn" onclick="testBasicFunction()">Test Basic Function</button>
+    <button class="test-btn" onclick="testWindowVoting()">Test window.Voting</button>
+    <button class="test-btn" onclick="simulateVote()">Simulate Direct Vote</button>
+    <button class="test-btn" onclick="clearLogs()">Clear Logs</button>
+    
+    <div id="logs"></div>
+    
+    <script>
+        function log(message, type = 'log') {
+            const logs = document.getElementById('logs');
+            logs.innerHTML += `<div class="log ${type}">${new Date().toLocaleTimeString()}: ${message}</div>`;
+            console.log(message);
+        }
+        
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+        
+        function testBasicFunction() {
+            log('✅ Basic JavaScript is working', 'success');
+            log('Testing alert...');
+            alert('If you see this, JavaScript works!');
+            log('Alert test completed', 'success');
+        }
+        
+        function testWindowVoting() {
+            try {
+                log('🔍 Checking if window.Voting exists...');
+                
+                if (typeof window.Voting === 'undefined') {
+                    log('❌ window.Voting does not exist', 'error');
+                    log('This means the voting.js file is not loaded or has errors', 'error');
+                    return;
+                }
+                
+                log('✅ window.Voting exists', 'success');
+                
+                // Check methods
+                const methods = ['confirmVote', 'selectCandidate', 'startVoting', 'cancelVoting'];
+                methods.forEach(method => {
+                    if (typeof window.Voting[method] === 'function') {
+                        log(`✅ ${method} method exists`, 'success');
+                    } else {
+                        log(`❌ ${method} method missing`, 'error');
+                    }
+                });
+                
+                // Check properties
+                log(`Selected candidate: ${window.Voting.selectedCandidate || 'None'}`);
+                log(`Current election: ${window.Voting.currentElection ? window.Voting.currentElection.name : 'None'}`);
+                
+            } catch (error) {
+                log(`❌ Error testing window.Voting: ${error.message}`, 'error');
+            }
+        }
+        
+        function simulateVote() {
+            try {
+                log('🗳️ Attempting to simulate vote...');
+                
+                if (typeof window.Voting === 'undefined') {
+                    log('❌ Cannot simulate - window.Voting not found', 'error');
+                    return;
+                }
+                
+                // Try to set a selected candidate
+                log('Setting selectedCandidate to test value...');
+                window.Voting.selectedCandidate = '999'; // Fake candidate ID
+                
+                log('Calling confirmVote directly...');
+                window.Voting.confirmVote();
+                
+                log('✅ confirmVote called successfully', 'success');
+                
+            } catch (error) {
+                log(`❌ Error simulating vote: ${error.message}`, 'error');
+                console.error('Full error:', error);
+            }
+        }
+        
+        // Auto-run basic tests
+        setTimeout(() => {
+            log('🚀 Starting automatic tests...');
+            testWindowVoting();
+        }, 1000);
+    </script>
+</body>
+</html>

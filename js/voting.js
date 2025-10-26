@@ -62,55 +62,35 @@ class Voting {
 
             console.log('Election found:', election);
 
-            // Verify election is active and get proper dates
-            const status = this.getElectionStatus(election);
-            const now = new Date();
+            // Simple and clear logic for voting eligibility
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const electionDateOnly = new Date(election.election_date);
+            electionDateOnly.setHours(0, 0, 0, 0);
+            const daysDiff = Math.floor((electionDateOnly - today) / (1000 * 60 * 60 * 24));
             
-            let startDate, endDate;
-            if (election.schedule && election.schedule.voting_start) {
-                startDate = new Date(election.schedule.voting_start);
-                endDate = new Date(election.schedule.voting_end);
-            } else {
-                // Fallback: use election_date, make it active for current testing
-                endDate = new Date(election.election_date);
-                startDate = new Date(endDate);
-                startDate.setDate(startDate.getDate() - 30);
-                
-                // For testing purposes, if election is active (is_active = 'Y'), allow voting
-                if (election.is_active === 'Y') {
-                    startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000); // Started yesterday
-                    endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // Ends in 30 days
-                }
-            }
-            
-            const oneMonthBeforeStart = new Date(startDate);
-            oneMonthBeforeStart.setMonth(oneMonthBeforeStart.getMonth() - 1);
-            
-            console.log('DEBUG Election Dates:', {
-                now,
-                startDate,
-                endDate,
-                oneMonthBeforeStart,
-                status,
-                election,
+            console.log('Voting eligibility check:', {
+                electionDate: election.election_date,
+                daysDiff: daysDiff,
                 isActive: election.is_active
             });
-
-            // Allow voting if election is marked as active OR during valid time periods
-            const canVote = election.is_active === 'Y' || (status === 'PreVoting' || status === 'Active');
             
-            // Additional check: Only allow voting during 'Active' status, not 'PreVoting'
-            const canActuallyVote = election.is_active === 'Y' || status === 'Active';
-            
-            if (!canVote) {
-                Utils.showToast('This election is not currently accepting votes. Please contact the administrator.', 'warning');
+            // Only allow voting for today's elections or yesterday's if explicitly active
+            if (daysDiff < -1) {
+                Utils.showToast('This election has ended. Voting is no longer available.', 'warning');
                 return;
-            }
-            
-            if (!canActuallyVote) {
-                // If election is in PreVoting (upcoming), show candidates but don't allow voting
-                Utils.showToast('This election is not yet open for voting. You can view the candidates below.', 'info');
+            } else if (daysDiff === 0) {
+                console.log('Today\'s election - allowing voting');
+                // Today's election - always allow voting
+            } else if (daysDiff === -1 && election.is_active === 'Y') {
+                console.log('Yesterday\'s election marked as active - allowing voting');
+                // Yesterday's election but explicitly active
+            } else if (daysDiff > 0) {
+                Utils.showToast('This election has not started yet. Voting will be available on the election date.', 'info');
                 this.showCandidatesOnly(election);
+                return;
+            } else {
+                Utils.showToast('This election is not currently accepting votes. Please contact the administrator.', 'warning');
                 return;
             }
 
@@ -171,38 +151,35 @@ class Voting {
 
     // Get election status
     getElectionStatus(election) {
-        // If election is explicitly marked as active, return 'Active' status
-        if (election.is_active === 'Y') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const electionDateOnly = new Date(election.election_date);
+        electionDateOnly.setHours(0, 0, 0, 0);
+        
+        const daysDiff = Math.floor((electionDateOnly - today) / (1000 * 60 * 60 * 24));
+        
+        // Elections more than 1 day in the past are ended
+        if (daysDiff < -1) {
+            return 'Ended';
+        }
+        
+        // Today's elections are always active
+        if (daysDiff === 0) {
             return 'Active';
         }
         
-        const now = new Date();
-        
-        // Use schedule table dates if available, otherwise use election_date
-        let startDate, endDate;
-        
-        if (election.schedule && election.schedule.voting_start) {
-            startDate = new Date(election.schedule.voting_start);
-            endDate = new Date(election.schedule.voting_end);
-        } else {
-            // Fallback: use election_date as end date, start 30 days before
-            endDate = new Date(election.election_date);
-            startDate = new Date(endDate);
-            startDate.setDate(startDate.getDate() - 30); // 30 days before election
+        // Yesterday's elections can be active only if explicitly marked
+        if (daysDiff === -1) {
+            return election.is_active === 'Y' ? 'Active' : 'Ended';
         }
         
-        const oneMonthBeforeStart = new Date(startDate);
-        oneMonthBeforeStart.setMonth(oneMonthBeforeStart.getMonth() - 1);
-
-        if (now < oneMonthBeforeStart) {
-            return 'Upcoming'; // Candidacy applications allowed
-        } else if (now >= oneMonthBeforeStart && now < startDate) {
-            return 'PreVoting'; // Voters can view candidates, candidacy applications closed
-        } else if (now >= startDate && now <= endDate) {
-            return 'Active'; // Voting period
-        } else {
-            return 'Ended';
+        // Future elections are upcoming
+        if (daysDiff > 0) {
+            return 'Upcoming';
         }
+        
+        return 'Ended';
     }
 
     // Show voting interface
@@ -225,9 +202,10 @@ class Voting {
                                        name="selectedCandidate" 
                                        value="${candidate.candidate_id}" 
                                        id="candidate_${candidate.candidate_id}"
-                                       ${preSelectedCandidateId === candidate.candidate_id ? 'checked' : ''}
-                                       onchange="window.Voting.selectCandidate('${candidate.candidate_id}')">
-                                <label for="candidate_${candidate.candidate_id}" class="candidate-card-voting">
+                                       ${preSelectedCandidateId === candidate.candidate_id ? 'checked' : ''}>
+                                <label for="candidate_${candidate.candidate_id}" 
+                                       class="candidate-card-voting"
+                                       onclick="window.Voting.selectCandidate('${candidate.candidate_id}')">
                                     <div class="candidate-photo-container">
                                         ${candidate.photo_url ? 
                                             `<img src="${candidate.photo_url}" alt="${candidate.full_name}" class="candidate-photo">` :
@@ -259,7 +237,7 @@ class Voting {
                     <button class="btn btn-outline" onclick="window.Voting.cancelVoting()">
                         <i class="fas fa-times"></i> Cancel
                     </button>
-                    <button id="confirmVoteBtn" class="btn btn-primary" ${preSelectedCandidateId ? '' : 'disabled'} onclick="window.Voting.confirmVote()">
+                    <button id="confirmVoteBtn" class="btn btn-primary" ${preSelectedCandidateId ? '' : 'disabled'}>
                         <i class="fas fa-paper-plane"></i> Submit Your Vote
                     </button>
                 </div>
@@ -283,6 +261,18 @@ class Voting {
         }
 
         modal.style.display = 'block';
+        
+        // Add event listener for the submit button
+        const submitButton = document.getElementById('confirmVoteBtn');
+        if (submitButton) {
+            submitButton.addEventListener('click', () => {
+                console.log('🔘 Submit button clicked!');
+                this.confirmVote();
+            });
+            console.log('✅ Submit button event listener added');
+        } else {
+            console.error('❌ Submit button not found');
+        }
     }
 
     // Show candidates only (for upcoming elections)
@@ -345,16 +335,26 @@ class Voting {
 
     // Select candidate
     selectCandidate(candidateId) {
-        console.log('selectCandidate called with:', candidateId);
+        console.log('🎯 selectCandidate called with:', candidateId);
         this.selectedCandidate = candidateId;
+        
+        // Update the radio button
+        const radioButton = document.getElementById(`candidate_${candidateId}`);
+        if (radioButton) {
+            radioButton.checked = true;
+            console.log('✅ Radio button checked:', radioButton);
+        } else {
+            console.error('❌ Radio button not found for candidateId:', candidateId);
+        }
         
         // Enable confirm button
         const confirmBtn = document.getElementById('confirmVoteBtn');
         if (confirmBtn) {
             confirmBtn.disabled = false;
-            console.log('Confirm button enabled');
+            confirmBtn.classList.remove('disabled');
+            console.log('✅ Submit button enabled');
         } else {
-            console.error('Confirm button not found!');
+            console.error('❌ Submit button not found!');
         }
         
         // Update UI to show selection
@@ -365,31 +365,35 @@ class Voting {
         const selectedCard = document.querySelector(`[data-candidate-id="${candidateId}"]`);
         if (selectedCard) {
             selectedCard.classList.add('selected');
-            console.log('Card selected:', selectedCard);
+            console.log('✅ Card selected:', selectedCard);
         } else {
-            console.error('Selected card not found for candidateId:', candidateId);
+            console.error('❌ Selected card not found for candidateId:', candidateId);
         }
     }
 
     // Confirm vote
     async confirmVote() {
-        console.log('confirmVote called, selectedCandidate:', this.selectedCandidate);
+        console.log('🗳️ confirmVote called, selectedCandidate:', this.selectedCandidate);
         
         if (!this.selectedCandidate) {
             Utils.showToast('Please select a candidate', 'warning');
             return;
         }
 
+        console.log('🔄 Showing confirmation dialog...');
         // Show confirmation dialog
         const confirmed = await this.showConfirmationDialog();
-        if (!confirmed) return;
+        if (!confirmed) {
+            console.log('❌ User cancelled confirmation');
+            return;
+        }
 
-        console.log('Vote confirmed, proceeding with submission...');
+        console.log('✅ Vote confirmed, proceeding with submission...');
         Utils.showLoading();
 
         try {
             const currentUser = window.Auth.getCurrentUser();
-            console.log('Current user:', currentUser);
+            console.log('👤 Current user:', currentUser);
             
             if (!currentUser) {
                 throw new Error('No authenticated user found');
@@ -402,10 +406,10 @@ class Voting {
                 .eq('email', currentUser.email)
                 .single();
 
-            console.log('Voter lookup result:', { voterData, voterError });
+            console.log('🔍 Voter lookup result:', { voterData, voterError });
 
             if (voterError) {
-                console.error('Voter lookup error:', voterError);
+                console.error('❌ Voter lookup error:', voterError);
                 throw voterError;
             }
 
@@ -413,6 +417,7 @@ class Voting {
                 throw new Error('Voter record not found');
             }
 
+            console.log('🔍 Checking if user already voted...');
             // Double-check if already voted in this election
             const { data: existingVotes, error: checkError } = await supabase
                 .from('vote')
@@ -425,13 +430,16 @@ class Voting {
                 .eq('voter_id', voterData.voter_id)
                 .eq('contest.election_id', this.currentElection.election_id);
 
+            console.log('🔍 Existing votes check:', { existingVotes, checkError });
+
             if (checkError) {
-                console.error('Vote check error:', checkError);
+                console.error('⚠️ Vote check error:', checkError);
                 // Continue anyway, the database constraint will prevent duplicate votes
             }
 
             if (existingVotes && existingVotes.length > 0) {
-                Utils.showToast('You have already voted in this election', 'error');
+                console.log('❌ User already voted');
+                Utils.showToast('You have already voted for this election, you can\'t vote again', 'error');
                 this.cancelVoting();
                 return;
             }
@@ -714,8 +722,25 @@ class Voting {
 
 // Initialize voting when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    window.Voting = new Voting();
+    try {
+        console.log('🚀 Initializing Voting system...');
+        
+        // Check if required dependencies are available
+        if (typeof Utils === 'undefined') {
+            console.error('❌ Utils class not found - check script loading order');
+            return;
+        }
+        
+        if (typeof supabase === 'undefined') {
+            console.error('❌ Supabase client not found - check script loading');
+            return;
+        }
+        
+        window.Voting = new Voting();
+        console.log('✅ Voting instance created and assigned to window.Voting');
+        console.log('✅ Available methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(window.Voting)));
+        
+    } catch (error) {
+        console.error('❌ Error initializing Voting system:', error);
+    }
 });
-
-// Export Voting class
-window.Voting = Voting;

@@ -275,27 +275,56 @@ class Elections {
     getElectionStatus(election) {
         // Use current date
         const now = new Date();
-        const electionDate = new Date(election.election_date);
-        
-        console.log(`📅 Checking status for ${election.name}:`, {
-            now: now.toISOString(),
-            electionDate: election.election_date,
-            hasSchedule: election.schedule && election.schedule.length > 0
-        });
-        
-        // Primary logic: Use election_date as the main indicator
-        // This is more reliable than potentially incorrect schedule data
         const today = new Date();
         today.setHours(0, 0, 0, 0); // Start of today
         
         const electionDateOnly = new Date(election.election_date);
         electionDateOnly.setHours(0, 0, 0, 0); // Start of election day
         
-        // If election date is in the future, it's upcoming
-        if (electionDateOnly > today) {
-            console.log(`📅 ${election.name}: Upcoming (election date is future: ${election.election_date})`);
+        console.log(`📅 Checking status for ${election.name}:`, {
+            now: now.toISOString(),
+            today: today.toISOString(),
+            electionDate: election.election_date,
+            electionDateOnly: electionDateOnly.toISOString(),
+            isActive: election.is_active,
+            hasSchedule: election.schedule && election.schedule.length > 0
+        });
+        
+        const daysDiff = Math.floor((electionDateOnly - today) / (1000 * 60 * 60 * 24));
+        console.log(`Days difference: ${daysDiff} (negative = past, 0 = today, positive = future)`);
+        
+        // RULE 1: Elections more than 1 day in the past are always ended
+        if (daysDiff < -1) {
+            console.log(`📅 ${election.name}: Ended (more than 1 day past: ${Math.abs(daysDiff)} days ago)`);
+            return 'Ended';
+        }
+        
+        // RULE 2: Today's elections are always active (regardless of is_active flag)
+        if (daysDiff === 0) {
+            console.log(`📅 ${election.name}: Active (today's election)`);
+            return 'Active';
+        }
+        
+        // RULE 3: Yesterday's elections can be active only if explicitly marked
+        if (daysDiff === -1) {
+            if (election.is_active === 'Y') {
+                console.log(`📅 ${election.name}: Active (yesterday's election, explicitly marked active)`);
+                return 'Active';
+            } else {
+                console.log(`📅 ${election.name}: Ended (yesterday's election, not marked active)`);
+                return 'Ended';
+            }
+        }
+        
+        // RULE 4: Future elections are upcoming by default
+        if (daysDiff > 0) {
+            console.log(`📅 ${election.name}: Upcoming (future election: ${daysDiff} days ahead)`);
             return 'Upcoming';
         }
+        
+        // Fallback (should not reach here)
+        console.log(`📅 ${election.name}: Defaulting to Ended`);
+        return 'Ended';
         
         // If election date is today, check if it's still active
         if (electionDateOnly.getTime() === today.getTime()) {
@@ -356,7 +385,7 @@ class Elections {
             // Ongoing elections: Users can vote AND view candidates
             if (window.Auth && window.Auth.isAuthenticated()) {
                 if (window.Auth.hasRole('voter')) {
-                    actions += `<button class="btn btn-primary" onclick="window.Voting.startVoting('${election.election_id}')">`;
+                    actions += `<button class="btn btn-primary" onclick="startSimpleVoting('${election.election_id}')">`;
                     actions += '<i class="fas fa-vote-yea"></i> Vote Now</button>';
                 }
             } else {

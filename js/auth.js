@@ -891,15 +891,34 @@ class Auth {
 
             const now = new Date();
             const allElections = allElectionsRes.data || [];
-            // Ongoing elections: is_active === 'Y' and today is within voting period
+            
+            // Use the same logic as Elections page for consistency
             const ongoingCount = allElections.filter(e => {
-                if (e.is_active !== 'Y') return false;
                 const today = new Date();
-                today.setHours(0,0,0,0);
-                const electionDate = new Date(e.election_date);
-                electionDate.setHours(0,0,0,0);
-                // Ongoing if today is the election date
-                return electionDate.getTime() === today.getTime();
+                today.setHours(0, 0, 0, 0);
+                
+                const electionDateOnly = new Date(e.election_date);
+                electionDateOnly.setHours(0, 0, 0, 0);
+                
+                const daysDiff = Math.floor((electionDateOnly - today) / (1000 * 60 * 60 * 24));
+                
+                // Elections more than 1 day in the past are ended
+                if (daysDiff < -1) {
+                    return false;
+                }
+                
+                // Today's elections are always active
+                if (daysDiff === 0) {
+                    return true;
+                }
+                
+                // Yesterday's elections can be active only if explicitly marked
+                if (daysDiff === -1) {
+                    return e.is_active === 'Y';
+                }
+                
+                // Future elections are not ongoing
+                return false;
             }).length;
 
             const upcomingCount = allElections.filter(e => {

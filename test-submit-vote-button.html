@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Voting Button</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .test-btn { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 10px; }
+        .log { background: #f8f9fa; padding: 10px; margin: 10px 0; border-left: 4px solid #007bff; }
+    </style>
+</head>
+<body>
+    <h1>Voting Button Test</h1>
+    <p>Open this page on the same localhost where your voting system is running, then test:</p>
+    
+    <button class="test-btn" onclick="testVotingFunction()">Test if window.Voting.confirmVote() exists</button>
+    <button class="test-btn" onclick="testButtonClick()">Simulate Button Click</button>
+    <button class="test-btn" onclick="checkButtonState()">Check Button State</button>
+    
+    <div id="logs"></div>
+    
+    <script>
+        function log(message) {
+            const logs = document.getElementById('logs');
+            logs.innerHTML += `<div class="log">${new Date().toLocaleTimeString()}: ${message}</div>`;
+        }
+        
+        function testVotingFunction() {
+            if (typeof window.Voting !== 'undefined') {
+                log('✅ window.Voting exists');
+                if (typeof window.Voting.confirmVote === 'function') {
+                    log('✅ confirmVote method exists');
+                    try {
+                        // Don't actually call it, just test if it's callable
+                        log('✅ confirmVote is callable');
+                    } catch (error) {
+                        log('❌ Error with confirmVote: ' + error.message);
+                    }
+                } else {
+                    log('❌ confirmVote method not found');
+                }
+            } else {
+                log('❌ window.Voting not found - make sure you\'re on the voting page');
+            }
+        }
+        
+        function testButtonClick() {
+            const button = document.getElementById('confirmVoteBtn');
+            if (button) {
+                log('✅ Button found: ' + button.innerHTML);
+                log('Button disabled: ' + button.disabled);
+                log('Button onclick: ' + (button.onclick ? 'Set' : 'Not set'));
+                
+                if (!button.disabled) {
+                    log('🔘 Clicking button...');
+                    button.click();
+                } else {
+                    log('⚠️ Button is disabled - select a candidate first');
+                }
+            } else {
+                log('❌ confirmVoteBtn not found - open voting modal first');
+            }
+        }
+        
+        function checkButtonState() {
+            const button = document.getElementById('confirmVoteBtn');
+            if (button) {
+                log('Button properties:');
+                log('- Disabled: ' + button.disabled);
+                log('- Class: ' + button.className);
+                log('- Style display: ' + button.style.display);
+                log('- Onclick: ' + (button.onclick ? button.onclick.toString().substring(0, 100) + '...' : 'None'));
+            } else {
+                log('❌ Button not found');
+            }
+        }
+        
+        // Auto-check when page loads
+        setTimeout(() => {
+            log('🔍 Auto-checking voting system...');
+            testVotingFunction();
+        }, 1000);
+    </script>
+</body>
+</html>

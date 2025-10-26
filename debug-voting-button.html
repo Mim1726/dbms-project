@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Voting Button</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .debug { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+        .warning { background: #fff3e0; color: #ef6c00; }
+    </style>
+</head>
+<body>
+    <h1>Voting Button Debug</h1>
+    <div id="results"></div>
+    
+    <script>
+        function debugVotingButton() {
+            const results = document.getElementById('results');
+            let html = '';
+            
+            // Check if window.Voting exists
+            if (typeof window.Voting !== 'undefined') {
+                html += '<div class="debug success">✅ window.Voting exists</div>';
+                
+                // Check selectedCandidate
+                if (window.Voting.selectedCandidate) {
+                    html += `<div class="debug success">✅ selectedCandidate: ${window.Voting.selectedCandidate}</div>`;
+                } else {
+                    html += '<div class="debug warning">⚠️ selectedCandidate is not set (this will disable the button)</div>';
+                }
+                
+                // Check if confirmVote method exists
+                if (typeof window.Voting.confirmVote === 'function') {
+                    html += '<div class="debug success">✅ confirmVote method exists</div>';
+                } else {
+                    html += '<div class="debug error">❌ confirmVote method not found</div>';
+                }
+                
+                // Check button element
+                const button = document.getElementById('confirmVoteBtn');
+                if (button) {
+                    html += '<div class="debug success">✅ confirmVoteBtn element found</div>';
+                    html += `<div class="debug">Button disabled: ${button.disabled}</div>`;
+                    html += `<div class="debug">Button onclick: ${button.onclick}</div>`;
+                } else {
+                    html += '<div class="debug error">❌ confirmVoteBtn element not found</div>';
+                }
+                
+                // Check if we can manually call the function
+                html += '<div class="debug"><button onclick="testConfirmVote()">Test confirmVote() manually</button></div>';
+                
+            } else {
+                html += '<div class="debug error">❌ window.Voting not found</div>';
+            }
+            
+            results.innerHTML = html;
+        }
+        
+        function testConfirmVote() {
+            try {
+                if (window.Voting && window.Voting.confirmVote) {
+                    console.log('Manually calling confirmVote...');
+                    window.Voting.confirmVote();
+                } else {
+                    alert('confirmVote function not available');
+                }
+            } catch (error) {
+                console.error('Error calling confirmVote:', error);
+                alert('Error: ' + error.message);
+            }
+        }
+        
+        // Run debug when page loads
+        setTimeout(debugVotingButton, 1000);
+    </script>
+</body>
+</html>
